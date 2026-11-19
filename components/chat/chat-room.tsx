@@ -5407,6 +5407,11 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         return wrapperRef.current ? createPortal(menu, wrapperRef.current) : menu;
     };
 
+    // Cache expensive AI response projection parsing by raw response text.
+    // Sending a new message should not re-run display cleanup + rich parsing for every
+    // historical assistant batch in this room.
+    const responseProjectionCacheRef = useRef(new Map<string, { displayRaw: string; parsed: ReturnType<typeof parseAIResponse> | null }>());
+
     // ── Voice call message grouping ──────────────────
     // Deduplicate messages (staggered timeouts + concurrent reloads can cause duplicates)
     const dedupedMessages = useMemo(() => {
@@ -5448,12 +5453,23 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 projected.push(...batch);
                 continue;
             }
-            const displayRaw = renderDisplayText(raw, 2, false);
-            if (displayRaw === raw) {
+            let cachedProjection = responseProjectionCacheRef.current.get(raw);
+            if (!cachedProjection) {
+                const displayRaw = renderDisplayText(raw, 2, false);
+                cachedProjection = {
+                    displayRaw,
+                    parsed: displayRaw === raw ? null : parseAIResponse(displayRaw, []),
+                };
+                const cache = responseProjectionCacheRef.current;
+                cache.set(raw, cachedProjection);
+                // Keep memory bounded in long-running chat sessions.
+                if (cache.size > 80) cache.delete(cache.keys().next().value!);
+            }
+            if (cachedProjection.displayRaw === raw || !cachedProjection.parsed) {
                 projected.push(...batch);
                 continue;
             }
-            const parsed = parseAIResponse(displayRaw, []);
+            const parsed = cachedProjection.parsed;
             const parts = normalizeDisplayParts(parsed.parts);
             // 面板投影到第一条能显示它的消息上（拍一拍/通话留痕是系统小字，没有面板入口）
             const displayMetaIdx = parts.findIndex(canCarryFoldedPanel);
