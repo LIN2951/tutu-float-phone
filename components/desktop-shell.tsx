@@ -44,6 +44,7 @@ import { PhonePlaceholderApp } from "@/components/phone-placeholder-app";
 import MusicApp from "@/components/music/music-app";
 import MusicPlayer from "@/components/music/music-player";
 import MusicIsland from "@/components/music/music-island";
+import MusicFloat from "@/components/music/music-float";
 import MiniAppWindow from "@/components/music/mini-app-window";
 import { PhoneCalendarApp } from "@/components/calendar-app";
 import { WorldlineApp } from "@/components/worldline-app";
@@ -1081,6 +1082,7 @@ const MusicShellOverlays = memo(function MusicShellOverlays({
 
   return (
     <>
+      <MusicFloat hidden={activeApp === "music" || !!musicPlayer?.showFullPlayer} />
       {musicPlayer?.showFullPlayer && musicPlayer.currentTrack && <MusicPlayer />}
     </>
   );
