@@ -114,7 +114,7 @@ export function ChatMessageList({ onCloseApp, activeSession, onSelectSession, on
     const { visibleSessions, showMascot } = useMemo(() => {
         const contactIds = new Set(loadChatContacts().map(c => c.characterId));
         const characterNames = new Map(
-            loadCharacters().map(character => [character.id, resolveChatCharacterDisplayName(character)])
+            loadCharacters().map(character => [character.id, resolveChatCharacterDisplayName(character)] as const)
         );
         const removedIds = new Set(removedChatEntries());
         const keyword = listFilter.trim().toLowerCase();
