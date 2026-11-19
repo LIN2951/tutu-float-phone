@@ -50,7 +50,16 @@ type MomentsFeedProps = {
 };
 
 export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
-    const [posts, setPosts] = useState<MomentPost[]>([]);
+    // Read the local cache during the first render so opening Moments never paints
+    // an empty feed and then swaps in posts on the next effect frame.
+    const [posts, setPosts] = useState<MomentPost[]>(() => {
+        try {
+            const contactIds = new Set(loadChatContacts().map(contact => contact.characterId));
+            return getAllPosts().filter(post => post.authorType === "user" || contactIds.has(post.authorId));
+        } catch {
+            return [];
+        }
+    });
     const [showCompose, setShowCompose] = useState(false);
     const [sharedPhoto,setSharedPhoto]=useState<Blob|null>(null);
     useEffect(()=>{const open=()=>{if(!scrollRef.current?.getClientRects().length)return;const blob=takeMomentScreenshot();if(blob){setSharedPhoto(blob);setShowCompose(true);}};open();window.addEventListener('chat-screenshot-to-moments',open);return()=>window.removeEventListener('chat-screenshot-to-moments',open);},[]);
@@ -116,7 +125,9 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
         }, 80);
     };
 
-    const [unreadNotifs, setUnreadNotifs] = useState<ReturnType<typeof getUnreadMomentsNotifications>>([]);
+    const [unreadNotifs, setUnreadNotifs] = useState<ReturnType<typeof getUnreadMomentsNotifications>>(() => {
+        try { return getUnreadMomentsNotifications(); } catch { return []; }
+    });
     const [showNotifModal, setShowNotifModal] = useState(false);
     const [visiblePostCount, setVisiblePostCount] = useState(MOMENTS_INITIAL_POST_COUNT);
     const [activeComposer, setActiveComposer] = useState<ActiveMomentComposer | null>(null);
