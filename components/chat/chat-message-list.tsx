@@ -274,7 +274,7 @@ export function ChatMessageList({ onCloseApp, activeSession, onSelectSession, on
                                 </div>
                             ))}
                         </>
-                    )}}
+                    )}
                 </div>
             </PageShell>
 
