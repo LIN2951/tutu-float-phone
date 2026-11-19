@@ -97,6 +97,7 @@ function persistQueue(q: MusicTrack[]): void {
 export function MusicProvider({ children }: { children: ReactNode }) {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const blobUrlRef = useRef<string | null>(null);
+    const trackLoadTokenRef = useRef(0);
 
     const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null);
     useEffect(() => { if (currentTrack) recordListenTrack(currentTrack, consumeListenTrackActor()); }, [currentTrack?.id]);
@@ -122,6 +123,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     // Initialize audio element once
     useEffect(() => {
         const audio = new Audio();
+        audio.preload = "auto";
         audio.volume = 0.8;
         audioRef.current = audio;
 
@@ -194,34 +196,45 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         const audio = audioRef.current;
         if (!audio) return;
 
-        cleanupBlobUrl();
+        // A newer selection invalidates any URL/blob lookup still in flight.
+        const requestToken = ++trackLoadTokenRef.current;
         audio.pause();
+        setCurrentTime(0);
+        setDuration(0);
+        setIsPlaying(false);
+        cleanupBlobUrl();
 
-        // Netease tracks: fetch play URL from API
+        let nextSrc = "";
+        let nextTrack = track;
         if (track.id.startsWith("netease_")) {
             const nid = parseInt(track.id.replace("netease_", ""), 10);
-            const playUrl = await getNeteasePlayUrl(nid);
-            if (!playUrl) return;
-            audio.src = playUrl;
+            nextSrc = await getNeteasePlayUrl(nid) || "";
+            if (!nextSrc || requestToken !== trackLoadTokenRef.current) return;
         } else {
-            // Local tracks: load blob from IndexedDB
             const blob = await getAudioBlob(track.id);
-            if (!blob) return;
-            const url = URL.createObjectURL(blob);
-            blobUrlRef.current = url;
-            audio.src = url;
+            if (!blob || requestToken !== trackLoadTokenRef.current) return;
+            nextSrc = URL.createObjectURL(blob);
+            blobUrlRef.current = nextSrc;
             const playedAt = new Date().toISOString();
             void markTrackPlayed(track.id, playedAt).catch(() => undefined);
-            track = { ...track, lastPlayedAt: playedAt };
+            nextTrack = { ...track, lastPlayedAt: playedAt };
         }
 
-        setCurrentTrack(track);
+        if (requestToken !== trackLoadTokenRef.current) {
+            if (nextSrc.startsWith("blob:")) URL.revokeObjectURL(nextSrc);
+            return;
+        }
+
+        setCurrentTrack(nextTrack);
         setCurrentTime(0);
+        setDuration(0);
+        audio.src = nextSrc;
+        audio.load();
 
         try {
             await audio.play();
         } catch {
-            // Autoplay blocked — user interaction needed
+            // Autoplay may be blocked by the browser; the selected track remains ready.
         }
     }, [cleanupBlobUrl]);
 
@@ -234,10 +247,13 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const playUrl = useCallback((url: string, track: MusicTrack) => {
         const audio = audioRef.current;
         if (!audio) return;
+        trackLoadTokenRef.current += 1;
         setFloatDismissed(false);
         cleanupBlobUrl();
         audio.pause();
+        setDuration(0);
         audio.src = url;
+        audio.load();
         setCurrentTrack(track);
         setCurrentTime(0);
         audio.play().catch(() => {});
@@ -311,6 +327,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const stop = useCallback(() => {
+        trackLoadTokenRef.current += 1;
         const audio = audioRef.current;
         if (audio) {
             audio.pause();
