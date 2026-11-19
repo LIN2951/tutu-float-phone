@@ -5,7 +5,7 @@ import {hiddenChats,toggleHiddenChat,reverseCanSeeChat,subscribeReverse} from "@
 import {ChatSwipeRow} from "./chat-swipe-row";
 import { openChatAppearance } from "@/lib/chat-appearance";
 
-import React, { useState, useEffect, useSyncExternalStore,useRef } from "react";
+import React, { useState, useEffect, useSyncExternalStore,useRef,useMemo } from "react";
 import { Search, MessageCirclePlus, UsersRound, Settings, ListPlus } from "lucide-react";
 import { CHAT_MESSAGE_PUSHED_EVENT, loadChatSessions, loadChatContacts, ChatSession, createOrGetSession, createGroupSession, pushChatMessage, getLastVisibleSessionMessage, getChatMessagePreview,saveChatSessions } from "@/lib/chat-storage";
 import { loadCharacters } from "@/lib/character-storage";
@@ -108,6 +108,41 @@ export function ChatMessageList({ onCloseApp, activeSession, onSelectSession, on
     const mascotSettings = useSyncExternalStore(subscribeMascotSettings, getMascotSettingsSnapshot, getMascotSettingsSnapshot);
     const mascotChat = useSyncExternalStore(subscribeMascotChat, getMascotChatSnapshot, getMascotChatSnapshot);
     const [mascotAvatarUrl, setMascotAvatarUrl] = useState(mascotSettings.avatarImage || DEFAULT_MASCOT_AVATAR);
+
+    // Recompute derived list data only when sessions or filters change.
+    // Read each session's activity timestamp once instead of inside Array.sort's comparator.
+    const { visibleSessions, showMascot } = useMemo(() => {
+        const contactIds = new Set(loadChatContacts().map(c => c.characterId));
+        const characterNames = new Map(
+            loadCharacters().map(character => [character.id, resolveChatCharacterDisplayName(character)])
+        );
+        const removedIds = new Set(removedChatEntries());
+        const keyword = listFilter.trim().toLowerCase();
+        const showMascot = mascotSettings.chatEnabled
+            && listTab !== "group"
+            && (!keyword || (mascotSettings.nickname || "AI助手").toLowerCase().includes(keyword));
+
+        const visibleSessions = sessions
+            .filter(session => {
+                if (!(session.isGroup || contactIds.has(session.contactId))) return false;
+                if (!hasSessionListContent(session.id) || removedIds.has(session.id)) return false;
+                if (listTab === "private" && session.isGroup) return false;
+                if (listTab === "group" && !session.isGroup) return false;
+                if (!keyword) return true;
+                if (session.isGroup) return (session.groupName || "群聊").toLowerCase().includes(keyword);
+                const name = session.alias || characterNames.get(session.contactId) || "";
+                return name.toLowerCase().includes(keyword);
+            })
+            .map(session => ({ session, activeTime: parseTime(getSessionListTime(session)) }))
+            .sort((a, b) => {
+                if (a.session.isPinned && !b.session.isPinned) return -1;
+                if (!a.session.isPinned && b.session.isPinned) return 1;
+                return b.activeTime - a.activeTime;
+            })
+            .map(item => item.session);
+
+        return { visibleSessions, showMascot };
+    }, [sessions, listFilter, listTab, mascotSettings.chatEnabled, mascotSettings.nickname]);
 
     useEffect(() => {
         if (showChatSearch) chatSearchRef.current?.focus();
@@ -212,59 +247,34 @@ export function ChatMessageList({ onCloseApp, activeSession, onSelectSession, on
                     <span className="kkt-group-decor" aria-hidden="true"><ListPlus size={18} strokeWidth={1.8}/></span>
                 </div>
                 <div className="kkt-session-list">
-                    {(() => {
-                            const contactIds = new Set(loadChatContacts().map(c => c.characterId));
-                            const allChars = loadCharacters();
-                            const keyword = listFilter.trim().toLowerCase();
-                            const showMascot = mascotSettings.chatEnabled
-                                && listTab !== "group"
-                                && (!keyword || (mascotSettings.nickname || "AI助手").toLowerCase().includes(keyword));
-                            const regularItems = [...sessions]
-                            .filter(s => {
-                                if (!(s.isGroup || contactIds.has(s.contactId))) return false;
-                                if (!hasSessionListContent(s.id)||removedChatEntries().includes(s.id)) return false;
-                                if (listTab === "private" && s.isGroup) return false;
-                                if (listTab === "group" && !s.isGroup) return false;
-                                if (!keyword) return true;
-                                if (s.isGroup) return (s.groupName || "群聊").toLowerCase().includes(keyword);
-                                const matchedCharacter = allChars.find(c => c.id === s.contactId);
-                                const name = s.alias || (matchedCharacter ? resolveChatCharacterDisplayName(matchedCharacter) : "");
-                                return name.toLowerCase().includes(keyword);
-                            })
-                            .sort((a, b) => {
-                                if (a.isPinned && !b.isPinned) return -1;
-                                if (!a.isPinned && b.isPinned) return 1;
-                                const aTime = getSessionListTime(a);
-                                const bTime = getSessionListTime(b);
-                                return parseTime(bTime) - parseTime(aTime);
-                            })
-                            .map(s => (
-                                <div key={s.id} data-reverse-session-id={s.id}>
-                                    <SessionItem session={s} onSelect={() => onSelectSession(s)} isPinned={!!s.isPinned} swipeOpen={swipeId===s.id} onSwipeChange={open=>setSwipeId(open?s.id:null)} />
+                    {(!showMascot && visibleSessions.length === 0) ? (
+                        <div className="px-5 py-10 text-center text-[var(--c-icon)] ts-14">
+                            暂无聊天记录，点击右上角的发起聊天图标
+                        </div>
+                    ) : (
+                        <>
+                            {showMascot && (
+                                <MascotSessionItem
+                                    name={mascotSettings.nickname || "AI助手"}
+                                    avatarUrl={mascotAvatarUrl}
+                                    preview={getMascotLastPreview()}
+                                    isThinking={mascotChat.isThinking}
+                                    onSelect={onSelectMascot}
+                                />
+                            )}
+                            {visibleSessions.map(session => (
+                                <div key={session.id} data-reverse-session-id={session.id}>
+                                    <SessionItem
+                                        session={session}
+                                        onSelect={() => onSelectSession(session)}
+                                        isPinned={!!session.isPinned}
+                                        swipeOpen={swipeId === session.id}
+                                        onSwipeChange={open => setSwipeId(open ? session.id : null)}
+                                    />
                                 </div>
-                            ));
-                            if (!showMascot && regularItems.length === 0) {
-                                return (
-                                    <div className="px-5 py-10 text-center text-[var(--c-icon)] ts-14">
-                                        暂无聊天记录，点击右上角的发起聊天图标
-                                    </div>
-                                );
-                            }
-                            return (
-                                <>
-                                    {showMascot && (
-                                        <MascotSessionItem
-                                            name={mascotSettings.nickname || "AI助手"}
-                                            avatarUrl={mascotAvatarUrl}
-                                            preview={getMascotLastPreview()}
-                                            isThinking={mascotChat.isThinking}
-                                            onSelect={onSelectMascot}
-                                        />
-                                    )}
-                                    {regularItems}
-                                </>
-                            );
-                        })()}
+                            ))}
+                        </>
+                    )}}
                 </div>
             </PageShell>
 
