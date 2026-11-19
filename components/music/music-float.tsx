@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMusicControlsOptional } from "@/lib/music-context";
+import { loadMusicFloatAppearance, MUSIC_FLOAT_APPEARANCE_EVENT, MUSIC_FLOAT_COLORS } from "@/lib/music-bg";
 
 const DRAG_START_THRESHOLD = 6;
 const SWIPE_DISMISS_EDGE_X = 4;
@@ -38,6 +39,13 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
     const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [expanded, setExpanded] = useState(false);
     const [dismissing, setDismissing] = useState(false);
+    const [appearance, setAppearance] = useState(() => loadMusicFloatAppearance());
+
+    useEffect(() => {
+        const refresh = () => setAppearance(loadMusicFloatAppearance());
+        window.addEventListener(MUSIC_FLOAT_APPEARANCE_EVENT, refresh);
+        return () => window.removeEventListener(MUSIC_FLOAT_APPEARANCE_EVENT, refresh);
+    }, []);
 
     const clampPos = useCallback((x: number, y: number) => {
         const el = floatRef.current;
@@ -162,7 +170,7 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
     const handlePointerUp = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
     const handlePointerCancel = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
 
-    if (!player || !player.currentTrack || hidden || player.floatDismissed) return null;
+    if (!player || !player.currentTrack || hidden || player.floatDismissed || !appearance.enabled) return null;
 
     const track = player.currentTrack;
 
@@ -170,6 +178,10 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
         <div
             ref={floatRef}
             className="music-float"
+            data-float-color={appearance.color}
+            data-card-style={appearance.cardStyle}
+            data-float-shape={appearance.shape}
+            style={{ left: pos.x, top: pos.y, "--music-float-accent": MUSIC_FLOAT_COLORS.find(item => item.id === appearance.color)?.value || "#9b8cff" } as React.CSSProperties}
             {...(expanded ? { "data-expanded": "" } : {})}
             {...(dismissing ? { "data-dismissing": "" } : {})}
             style={{ left: pos.x, top: pos.y }}
@@ -184,7 +196,9 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
                     <div className="music-float-vinyl-groove music-float-vinyl-groove-1" />
                     <div className="music-float-vinyl-groove music-float-vinyl-groove-2" />
                     <div className="music-float-vinyl-center">
-                        {track.coverUrl ? (
+                        {appearance.image ? (
+                            <img src={appearance.image} alt="" className="music-float-cover-img" draggable={false} />
+                        ) : track.coverUrl ? (
                             <img src={track.coverUrl} alt="" className="music-float-cover-img" draggable={false} />
                         ) : (
                             <div className="music-float-cover-placeholder">
