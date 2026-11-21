@@ -491,6 +491,8 @@ function shouldShowTimestamp(currentMsg: string, prevMsg: string | null): boolea
 
 type ChatRoomProps = {
     session: ChatSession;
+    /** Only the foreground room may inject its session-scoped custom styles. */
+    active?: boolean;
     onBack: () => void;
     /** 会话在设置页被删除后回调：由外层卸载本聊天室并回到列表 */
     onDeleted?: () => void;
@@ -1172,7 +1174,7 @@ const OfflineTextInputBar = memo(forwardRef<OfflineTextInputHandle, React.Compon
 }));
 
 
-export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
+export function ChatRoom({ session, active = true, onBack, onDeleted }: ChatRoomProps) {
     const reverseControl=useReverseVisit();
     const reverseWindow=reverseControl?.messageWindows?.[session.id]?.join("|");
     useEffect(()=>{if(!reverseControl)return;const all=loadChatMessages(session.id);const ids=activeReverse()?.messageWindows?.[session.id];setMessages(ids?all.filter(m=>ids.includes(m.id)):all.slice(-50));},[session.id,reverseControl?.id,reverseWindow]);
@@ -5813,10 +5815,10 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
     return (
         <div ref={wrapperRef} className={`session-${session.id} chat-room-wrapper page-shell inset-0 flex flex-col z-20`} style={chatRoomBackgroundStyle} data-offline-mode={offlineMode ? "true" : "false"} data-offline-notes={offlineMode ? "true" : undefined} {...(bgLoading ? { "data-loading": "" } : {})} {...(bgImageResolved ? { "data-has-bg-image": "" } : {})} {...(showSettings ? { "data-settings-open": "" } : {})}>
             {/* CSS priority: session > global chat info > homepage appearance CSS. */}
-            {globalChatCSS && (
+            {active && globalChatCSS && (
                 <SessionCustomCSS css={globalChatCSS} scope={`.session-${session.id}`} />
             )}
-            {liveCSS && (
+            {active && liveCSS && (
                 <SessionCustomCSS css={liveCSS} scope={`.session-${session.id}`} />
             )}
 
