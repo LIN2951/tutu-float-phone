@@ -3,15 +3,22 @@
 import { useEffect, useState } from "react";
 import { useMusicPlayerOptional } from "@/lib/music-context";
 import { useListenSessions } from "@/lib/together-listening";
+import { loadMusicFloatAppearance, MUSIC_FLOAT_APPEARANCE_EVENT } from "@/lib/music-bg";
 
 export default function MusicIsland({ onOpen }: { onOpen: () => void }) {
     const player = useMusicPlayerOptional();
     const together = useListenSessions().some(s => !s.endedAt);
     const [expanded, setExpanded] = useState(false);
+    const [floatMode, setFloatMode] = useState<"orb" | "island">(() => loadMusicFloatAppearance().mode || "orb");
+    useEffect(() => {
+        const refresh = () => setFloatMode(loadMusicFloatAppearance().mode || "orb");
+        window.addEventListener(MUSIC_FLOAT_APPEARANCE_EVENT, refresh);
+        return () => window.removeEventListener(MUSIC_FLOAT_APPEARANCE_EVENT, refresh);
+    }, []);
     const track = player?.currentTrack;
     useEffect(() => { if (!track) setExpanded(false); }, [track?.id]);
 
-    if (!player || !track) return <span className="status-island" aria-label="灵动岛" />;
+    if (!player || !track || floatMode !== "island") return <span className="status-island" aria-label="灵动岛" />;
     return <div className={`status-island music-island${expanded ? " music-island-expanded" : ""}`}>
         {!expanded ? <button className="music-island-compact" onClick={() => setExpanded(true)} aria-label="展开音乐播放控制">
             {track.coverUrl ? <img src={track.coverUrl} alt="" /> : <span className="music-island-art-empty">♫</span>}
