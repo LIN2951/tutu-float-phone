@@ -708,9 +708,24 @@ function parseSegment(segment: string, parts: ParsedMessagePart[]) {
     parts.push({ content: segment });
 }
 
+/** Remove leaked provider/tool protocol envelopes before any assistant text reaches UI. */
+export function sanitizeAssistantDisplayText(input: string): string {
+    if (!input) return "";
+    return input
+        // MiniMax/OpenAI-style raw tool-call channel accidentally included in plain text.
+        .replace(/\\s*\\]?<\\|(?:minimax|tool_call|tool_result)\\|>\\s*(?:\\[)?<tool_call>[\\s\\S]*$/gi, "")
+        .replace(/<tool_call\\b[^>]*>[\\s\\S]*?(?:<\\/tool_call>|$)/gi, "")
+        .replace(/<tool_result\\b[^>]*>[\\s\\S]*?(?:<\\/tool_result>|$)/gi, "")
+        .replace(/\\[tool_call\\b[^\\]]*\\][\\s\\S]*?(?:\\[\\/tool_call\\]|$)/gi, "")
+        .replace(/\\[tool_result\\b[^\\]]*\\][\\s\\S]*?(?:\\[\\/tool_result\\]|$)/gi, "")
+        .replace(/<\\|(?:minimax|tool_call|tool_result)\\|>/gi, "")
+        .replace(/\\n{3,}/g, "\\n\\n")
+        .trim();
+}
+
 // ── Main parser ──────────────────────────────────────────
 
-export function parseAIResponse(rawText: string, previousState: StateValue[]): ParsedAIResponse {
+export function parseAIResponse(rawText: string, previousState: StateValue[]): ParsedAIResponse {\n    rawText = sanitizeAssistantDisplayText(rawText);
     const acceptedAvatarRecommendation = /[\[【]\s*接受头像推荐\s*[\]】]/.test(rawText);
     const declinedAvatarRecommendation = /[\[【]\s*拒绝头像推荐\s*[\]】]/.test(rawText);
     const characterRemarkMatch = rawText.match(/[\[【]\s*(?:给用户备注|给你备注|用户备注)\s*[：:]\s*([^\]】\n]{1,40})\s*[\]】]/);
