@@ -50,7 +50,7 @@ export async function loadAllTracks(): Promise<MusicTrack[]> {
     if (!db) return [];
     const tx = db.transaction(META_STORE, "readonly");
     const tracks: MusicTrack[] = await runRequest(tx.objectStore(META_STORE).getAll());
-    tracks.sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+    tracks.sort((a, b) => (b.lastPlayedAt || b.addedAt).localeCompare(a.lastPlayedAt || a.addedAt));
     return tracks;
 }
 
@@ -102,6 +102,7 @@ export async function updateTrackMeta(trackId: string, updates: Partial<MusicTra
 
 export async function markTrackPlayed(trackId: string, playedAt = new Date().toISOString()): Promise<void> {
     await updateTrackMeta(trackId, { lastPlayedAt: playedAt });
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("music-library-updated"));
 }
 
 export async function toggleLike(trackId: string): Promise<boolean> {
