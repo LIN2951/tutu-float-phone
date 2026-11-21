@@ -303,7 +303,7 @@ export function PhoneThemeApp({
       const { downloadFile } = await import("@/lib/download-utils");
       await downloadFile(result.blob, result.fileName);
       setShowThemeTransfer(false);
-      onNotice(`已导出主题包：${result.summary.assetCount} 个资源，${result.summary.widgetCount} 个桌面组件。`);
+      onNotice(`主题包已生成：${result.summary.assetCount} 个资源，${result.summary.widgetCount} 个桌面组件。若已打开系统分享面板，请选择“保存到文件”或“下载”完成本地保存。`);
     } catch (error) {
       console.error(error);
       onNotice(error instanceof Error ? error.message : "主题导出失败");
