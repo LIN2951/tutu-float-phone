@@ -5320,3 +5320,11 @@
 @keyframes mf-island-enter{from{opacity:0;transform:translate(-50%,-8px) scale(.94)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
 @keyframes mf-island-expand{from{clip-path:inset(0 35% 88% 35% round 999px);opacity:.8}to{clip-path:inset(0 0 0 0 round 28px);opacity:1}}
 @keyframes mf-island-retract{from{clip-path:inset(0 0 0 0 round 28px);opacity:1}to{clip-path:inset(0 35% 88% 35% round 999px);opacity:.8}}
+
+.music-desktop-lyrics-v2{position:absolute;z-index:57;width:min(360px,calc(100% - 20px));padding:12px;border:1px solid rgba(255,255,255,.14);border-radius:22px;background:rgba(24,24,28,.8);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 8px 28px #0003;touch-action:none;user-select:none}
+.music-desktop-lyrics-v2[data-locked]{padding:0;border:0;border-radius:0;background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important;pointer-events:none}
+.mdl-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.mdl-tools button{border:0;border-radius:8px;background:rgba(255,255,255,.16);color:#fff;padding:4px 7px;font-size:12px}
+.mdl-lines{font-weight:600;line-height:1.45}
+.mdl-lines>div+div{margin-top:4px}
+.music-desktop-lyrics-v2[data-locked] .mdl-lines{padding:0}
