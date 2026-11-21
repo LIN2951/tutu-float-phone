@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.IBinder
@@ -26,6 +27,7 @@ class MusicMediaService : Service() {
  private lateinit var session:MediaSessionCompat
  private var title="未知歌曲"; private var artist=""; private var album="Float"; private var artwork=""
  private var duration=0L; private var position=0L; private var playing=false; private var liked=false
+ private var cover: Bitmap? = null
  override fun onCreate() {
   super.onCreate(); createChannel()
   session=MediaSessionCompat(this,"FloatMusic").apply {
