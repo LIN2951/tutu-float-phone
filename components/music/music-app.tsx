@@ -29,6 +29,7 @@ import MusicCommentsPage from "./music-comments";
 import {
     loadMusicBg, saveMusicBg, clearMusicBg, fileToCompressedDataUrl, appBgStyle,
     MUSIC_BG_EVENT, type MusicBgConfig, type MusicPlayerBgMode,
+    loadMusicFloatMode, saveMusicFloatMode, type MusicFloatMode,
 } from "@/lib/music-bg";
 
 type Props = { onClose: () => void };
@@ -1193,6 +1194,15 @@ function SongList({ tracks, player, formatTime, onDelete, onPlay }: {
                     <div className="music-settings-modal-dialog music-confirm-dialog" onClick={e => e.stopPropagation()}>
                         <div className="music-settings-header"><h2>删除确认</h2></div>
                         <div className="music-settings-body">
+                <div className="music-settings-section">
+                    <div className="music-settings-label">后台悬浮样式</div>
+                    <div className="music-settings-hint">选择音乐后台控件的显示方式</div>
+                    <div className="music-settings-actions">
+                        <button className="music-settings-btn" {...(floatMode === "orb" ? { "data-on": "" } : {})} onClick={() => { setFloatMode("orb"); saveMusicFloatMode("orb"); }}>悬浮球</button>
+                        <button className="music-settings-btn" {...(floatMode === "island" ? { "data-on": "" } : {})} onClick={() => { setFloatMode("island"); saveMusicFloatMode("island"); }}>顶部灵动岛</button>
+                    </div>
+                </div>
+
                             <div className="music-confirm-text">确定删除「{deleteTarget.title}」吗？</div>
                             <div className="music-settings-actions">
                                 <button className="music-settings-btn" onClick={() => setDeleteTarget(null)}>取消</button>
@@ -1498,6 +1508,7 @@ function PlaylistsTab({ player, formatTime, onPlayNetease, onPlayAll, activePlay
 // ── Settings Tab ──
 function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: () => void }) {
     const [config, setConfig] = useState<MusicApiConfig>(() => loadMusicApiConfig());
+    const [floatMode, setFloatMode] = useState<MusicFloatMode>(() => loadMusicFloatMode());
     const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
     const [testing, setTesting] = useState(false);
 
