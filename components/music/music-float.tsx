@@ -63,7 +63,6 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
         const el = rootRef.current;
         const host = el?.closest("[data-ui='phone-screen']") as HTMLElement | null;
         if (!el || !host) return { x, y };
-        const rect = host.getBoundingClientRect();
         const w = el.offsetWidth, h = el.offsetHeight;
         return {
             x: Math.max(0, Math.min(x, host.clientWidth - w)),
@@ -131,7 +130,7 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
 
     const beginDrag = (e: React.PointerEvent<HTMLElement>) => {
         const target = e.target as HTMLElement;
-        if ((target.closest("button,input") && !target.closest(".mf-orb")) || mode !== "orb") return;
+        if (!target.closest(".mf-orb") || mode !== "orb") return;
         const wasTucked = tucked;
         setTucked(false);
         clearTuckTimer();
@@ -172,8 +171,6 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
             requestAnimationFrame(() => { suppressOrbClickRef.current = false; });
             setTucked(false);
             scheduleTuck();
-        } else {
-            setExpanded(value => !value);
         }
     };
 
