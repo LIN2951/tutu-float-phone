@@ -190,7 +190,7 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
             {...(appearance.image ? { "data-custom-image": "" } : {})}
             {...(expanded ? { "data-expanded": "" } : {})}
             {...(dismissing ? { "data-dismissing": "" } : {})}
-            style={{ left: pos.x, top: pos.y, "--music-float-size": `${floatSize}px`, "--music-float-accent": MUSIC_FLOAT_COLORS.find(item => item.id === appearance.color)?.value || "#9b8cff" } as React.CSSProperties}
+            style={{ left: 0, top: 0, translate: `${pos.x}px ${pos.y}px`, "--music-float-size": `${floatSize}px`, "--music-float-accent": MUSIC_FLOAT_COLORS.find(item => item.id === appearance.color)?.value || "#9b8cff" } as React.CSSProperties}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
