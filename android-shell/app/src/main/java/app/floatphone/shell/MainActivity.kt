@@ -18,6 +18,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import android.provider.MediaStore
+import android.provider.DocumentsContract
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.JavascriptInterface
@@ -60,6 +61,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
+
+    private val exportFolderLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                getSharedPreferences("float_export", MODE_PRIVATE).edit().putString("tree_uri", uri.toString()).apply()
+                webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('float-export-folder-selected'))", null)
+                Toast.makeText(this, "导出文件夹已设置", Toast.LENGTH_SHORT).show()
+            }.onFailure { Toast.makeText(this, "无法保存文件夹权限", Toast.LENGTH_SHORT).show() }
+        }
+    }
 
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -326,15 +340,22 @@ class MainActivity : AppCompatActivity() {
                     put(MediaStore.Downloads.IS_PENDING, 1)
                 }
                 val resolver = contentResolver
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                    ?: return "ERROR:无法创建下载文件，请检查手机存储空间。"
+                val selectedTree = getSharedPreferences("float_export", MODE_PRIVATE).getString("tree_uri", null)?.let(Uri::parse)
+                val uri = if (selectedTree != null) {
+                    val treeDocument = DocumentsContract.buildDocumentUriUsingTree(
+                        selectedTree, DocumentsContract.getTreeDocumentId(selectedTree)
+                    )
+                    DocumentsContract.createDocument(resolver, treeDocument, mimeType.ifBlank { "application/zip" }, safeName)
+                } else {
+                    resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                } ?: return "ERROR:无法创建导出文件，请检查文件夹权限和手机存储空间。"
                 try {
                     resolver.openOutputStream(uri)?.use { output -> output.write(bytes) }
                         ?: throw IllegalStateException("无法写入下载文件")
-                    val completed = ContentValues().apply {
-                        put(MediaStore.Downloads.IS_PENDING, 0)
+                    if (selectedTree == null) {
+                        val completed = ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }
+                        resolver.update(uri, completed, null, null)
                     }
-                    resolver.update(uri, completed, null, null)
                     "OK"
                 } catch (error: Exception) {
                     resolver.delete(uri, null, null)
@@ -346,6 +367,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         /** 打开本应用的系统设置页（引导用户关电池限制、开自启动）。 */
+        @JavascriptInterface
+        fun chooseExportFolder() {
+            runOnUiThread { exportFolderLauncher.launch(null) }
+        }
+
         @JavascriptInterface
         fun openAppSettings() {
             runCatching {
