@@ -1864,7 +1864,13 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
                 </div>
 
                 <div className="music-settings-section music-qr-section">
-                    <div className="music-settings-label">后台悬浮球</div>
+                    <div className="music-settings-label">后台悬浮样式</div>
+                    <div className="music-settings-hint">选择悬浮球或顶部灵动岛，两种模式不会同时显示</div>
+                    <div className="music-settings-actions">
+                        <button className="music-settings-btn" {...(floatAppearance.mode !== "island" ? { "data-on": "" } : {})} onClick={() => applyFloatAppearance({ ...floatAppearance, mode: "orb" })}>悬浮球</button>
+                        <button className="music-settings-btn" {...(floatAppearance.mode === "island" ? { "data-on": "" } : {})} onClick={() => applyFloatAppearance({ ...floatAppearance, mode: "island" })}>顶部灵动岛</button>
+                    </div>
+                    <div className="music-settings-label" style={{ marginTop: 14 }}>后台悬浮球</div>
                     <div className="music-settings-hint">独立控制悬浮球显示；隐藏不会暂停或清除正在播放的歌曲</div>
                     <div className="music-settings-actions">
                         <button className="music-settings-btn" {...(floatAppearance.enabled ? { "data-on": "" } : {})} onClick={() => applyFloatAppearance({ ...floatAppearance, enabled: true })}>显示悬浮球</button>
