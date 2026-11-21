@@ -41,6 +41,7 @@ export async function preloadMomentsPhotos(urls: Array<string | undefined | null
         if (image.complete) resolve();
         else if (typeof image.decode === "function") image.decode().then(() => resolve()).catch(() => resolve());
     })));
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("moments-photo-cache-ready"));
 }
 
 export function useMomentsPhotoUrl(url?: string) {
@@ -52,11 +53,17 @@ export function useMomentsPhotoUrl(url?: string) {
     useEffect(() => {
         let active = true;
         if (!url) { setResolved(null); return; }
-        const cached = resolvedMomentPhotoCache.get(url);
-        if (cached !== undefined) { setResolved(cached); return; }
-        setResolved(null);
+        const syncCached = () => {
+            const cached = resolvedMomentPhotoCache.get(url);
+            if (cached !== undefined) setResolved(cached);
+        };
+        window.addEventListener("moments-photo-cache-ready", syncCached);
+        syncCached();
         resolveMomentsPhotoUrl(url).then(src => { if (active) setResolved(src); });
-        return () => { active = false; };
+        return () => {
+            active = false;
+            window.removeEventListener("moments-photo-cache-ready", syncCached);
+        };
     }, [url]);
     return resolved;
 }
