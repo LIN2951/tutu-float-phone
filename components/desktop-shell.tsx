@@ -1103,7 +1103,13 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
     musicOverlayControllerRef.current = controller;
   }, []);
   useAndroidCaretKeyboardLift();
-  const [startupLocked,setStartupLocked] = useState(() => initialLockEnabled ?? loadPhoneLock().enabled);
+  const [startupLocked,setStartupLocked] = useState(() => {
+    // If Android recreated the WebView while Float was backgrounded, restore
+    // the last page directly instead of forcing the lock screen a second time.
+    let hasRestorablePage = false;
+    try { hasRestorablePage = !!sessionStorage.getItem("float-last-active-app"); } catch {}
+    return hasRestorablePage ? false : (initialLockEnabled ?? loadPhoneLock().enabled);
+  });
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [layout, setLayout] = useState<DesktopLayout>(DEFAULT_LAYOUT);
   // Dock is an ordered icon-id list (max DOCK_MAX), kept disjoint from `layout`.
