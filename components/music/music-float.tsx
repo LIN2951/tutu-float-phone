@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMusicPlayerOptional } from "@/lib/music-context";
+import { getCloudSongLiked, setCloudSongLiked } from "@/lib/music-service";
 import { loadMusicFloatMode, MUSIC_FLOAT_MODE_EVENT, loadMusicFloatAppearance, MUSIC_FLOAT_APPEARANCE_EVENT, type MusicFloatMode } from "@/lib/music-bg";
 import MusicDesktopLyrics from "@/components/music/music-desktop-lyrics";
 
@@ -12,8 +13,13 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
   const [expanded,setExpanded] = useState(false);
   const [pos,setPos] = useState({x:12,y:280});
   const [lyricsOpen,setLyricsOpen] = useState(false);
+  const [cloudLiked,setCloudLiked] = useState(false);
+  const [likeBusy,setLikeBusy] = useState(false);
+  const [likeMessage,setLikeMessage] = useState("");
   const drag = useRef<{id:number;x:number;y:number;ox:number;oy:number;moved:boolean}|null>(null);
   useEffect(()=>{const refresh=()=>setMode(loadMusicFloatMode());const refreshAppearance=()=>setFloatEnabled(loadMusicFloatAppearance().enabled);window.addEventListener(MUSIC_FLOAT_MODE_EVENT,refresh);window.addEventListener(MUSIC_FLOAT_APPEARANCE_EVENT,refreshAppearance);return()=>{window.removeEventListener(MUSIC_FLOAT_MODE_EVENT,refresh);window.removeEventListener(MUSIC_FLOAT_APPEARANCE_EVENT,refreshAppearance);};},[]);
+  useEffect(()=>{let active=true;const id=player?.currentTrack?.id.match(/^netease_(\\d+)$/)?.[1];setCloudLiked(false);setLikeMessage("");if(id)getCloudSongLiked(Number(id)).then(v=>{if(active)setCloudLiked(v)});return()=>{active=false};},[player?.currentTrack?.id]);
+  const toggleCloudLike=async()=>{const id=player?.currentTrack?.id.match(/^netease_(\\d+)$/)?.[1];if(!id||likeBusy)return;setLikeBusy(true);setLikeMessage("");const next=!cloudLiked;const ok=await setCloudSongLiked(Number(id),next);if(ok)setCloudLiked(next);else setLikeMessage("网易云登录状态或网络异常，未能同步");setLikeBusy(false);};
   const clamp = useCallback((x:number,y:number)=>{const el=root.current;const host=el?.closest("[data-ui='phone-screen']") as HTMLElement|null;if(!host||!el)return{x,y};return{x:Math.max(4,Math.min(x,host.clientWidth-el.offsetWidth-4)),y:Math.max(8,Math.min(y,host.clientHeight-el.offsetHeight-8))};},[]);
   const down=(e:React.PointerEvent)=>{if((e.target as HTMLElement).closest("button,input"))return;drag.current={id:e.pointerId,x:e.clientX,y:e.clientY,ox:pos.x,oy:pos.y,moved:false};(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);};
   const move=(e:React.PointerEvent)=>{const d=drag.current;if(!d||d.id!==e.pointerId)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>6)d.moved=true;if(d.moved)setPos(clamp(d.ox+dx,d.oy+dy));};
@@ -35,7 +41,7 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
         <header><span>正在播放</span><button onClick={()=>setExpanded(false)}>收起</button></header>
         <div className="mf-island-track">{t.coverUrl?<img src={t.coverUrl} alt=""/>:<span>♫</span>}<div><strong>{t.title}</strong><small>{t.artist}</small></div></div>
         <input aria-label="播放进度" type="range" min="0" max={Math.max(1,player.duration)} value={Math.min(player.currentTime,Math.max(1,player.duration))} onChange={e=>player.seek(Number(e.target.value))}/>
-        <nav><button onClick={()=>setLyricsOpen(v=>!v)}>词</button><button onClick={()=>player.prev()}>上一首</button><button onClick={()=>player.togglePlay()}>{player.isPlaying?"暂停":"播放"}</button><button onClick={()=>player.next()}>下一首</button><button onClick={close}>关闭</button></nav>
+        <nav><button onClick={()=>setLyricsOpen(v=>!v)}>词</button><button onClick={()=>player.prev()}>上一首</button><button onClick={()=>player.togglePlay()}>{player.isPlaying?"暂停":"播放"}</button><button onClick={()=>player.next()}>下一首</button><button disabled={likeBusy||!/^netease_\\d+$/.test(t.id)} onClick={toggleCloudLike} aria-label="网易云红心">{cloudLiked?"♥":"♡"}</button><button onClick={close}>关闭</button></nav>{likeMessage&&<small role="status">{likeMessage}</small>}
       </section></>}
     </>}
     <MusicDesktopLyrics open={lyricsOpen} onClose={()=>setLyricsOpen(false)}/>
