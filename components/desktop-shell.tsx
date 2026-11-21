@@ -43,7 +43,6 @@ import { PhoneChatApp } from "@/components/chat/phone-chat-app";
 import { PhonePlaceholderApp } from "@/components/phone-placeholder-app";
 import MusicApp from "@/components/music/music-app";
 import MusicPlayer from "@/components/music/music-player";
-import MusicIsland from "@/components/music/music-island";
 import MusicFloat from "@/components/music/music-float";
 import MiniAppWindow from "@/components/music/mini-app-window";
 import { PhoneCalendarApp } from "@/components/calendar-app";
@@ -4457,7 +4456,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                       <span className="status-island-message-label">{chatMessageNotice.app === "chat" ? chatMessageNotice.title : `${chatMessageNotice.app === "sms" ? "短信" : chatMessageNotice.app === "lysn" ? "LYSN" : chatMessageNotice.title}新提示`}</span>
                     </span>
                     : null}
-                </button> : <MusicIsland onOpen={() => { setActiveApp("music"); musicOverlayControllerRef.current?.openFullPlayer(); }} />}
+                </button> : <span className="status-island" aria-label="灵动岛" /> }
                 {chatMessageNotice && !incomingCall && (activePhoneCall || activeChatCall || reverseVisitState || notificationMusic?.isPlaying) ? <button className="status-message-pending" aria-label={chatMessageNotice.title} onClick={() => setNoticePhase("banner")}>●{(chatMessageNotice.count || 1) > 1 ? chatMessageNotice.count : ""}</button> : null}
                 <div className="status-right" aria-hidden>
                   <svg viewBox="0 0 72 51" className="status-signal" fill="currentColor">
