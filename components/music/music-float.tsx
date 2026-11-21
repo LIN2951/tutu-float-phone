@@ -1,23 +1,24 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMusicPlayerOptional } from "@/lib/music-context";
-import { loadMusicFloatMode, MUSIC_FLOAT_MODE_EVENT, type MusicFloatMode } from "@/lib/music-bg";
+import { loadMusicFloatMode, MUSIC_FLOAT_MODE_EVENT, loadMusicFloatAppearance, MUSIC_FLOAT_APPEARANCE_EVENT, type MusicFloatMode } from "@/lib/music-bg";
 import MusicDesktopLyrics from "@/components/music/music-desktop-lyrics";
 
 export default function MusicFloat({ hidden }: { hidden?: boolean }) {
   const player = useMusicPlayerOptional();
   const root = useRef<HTMLDivElement>(null);
   const [mode,setMode] = useState<MusicFloatMode>(() => loadMusicFloatMode());
+  const [floatEnabled,setFloatEnabled] = useState(() => loadMusicFloatAppearance().enabled);
   const [expanded,setExpanded] = useState(false);
   const [pos,setPos] = useState({x:12,y:280});
   const [lyricsOpen,setLyricsOpen] = useState(false);
   const drag = useRef<{id:number;x:number;y:number;ox:number;oy:number;moved:boolean}|null>(null);
-  useEffect(()=>{const refresh=()=>setMode(loadMusicFloatMode());window.addEventListener(MUSIC_FLOAT_MODE_EVENT,refresh);return()=>window.removeEventListener(MUSIC_FLOAT_MODE_EVENT,refresh);},[]);
+  useEffect(()=>{const refresh=()=>setMode(loadMusicFloatMode());const refreshAppearance=()=>setFloatEnabled(loadMusicFloatAppearance().enabled);window.addEventListener(MUSIC_FLOAT_MODE_EVENT,refresh);window.addEventListener(MUSIC_FLOAT_APPEARANCE_EVENT,refreshAppearance);return()=>{window.removeEventListener(MUSIC_FLOAT_MODE_EVENT,refresh);window.removeEventListener(MUSIC_FLOAT_APPEARANCE_EVENT,refreshAppearance);};},[]);
   const clamp = useCallback((x:number,y:number)=>{const el=root.current;const host=el?.closest("[data-ui='phone-screen']") as HTMLElement|null;if(!host||!el)return{x,y};return{x:Math.max(4,Math.min(x,host.clientWidth-el.offsetWidth-4)),y:Math.max(8,Math.min(y,host.clientHeight-el.offsetHeight-8))};},[]);
   const down=(e:React.PointerEvent)=>{if((e.target as HTMLElement).closest("button,input"))return;drag.current={id:e.pointerId,x:e.clientX,y:e.clientY,ox:pos.x,oy:pos.y,moved:false};(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);};
   const move=(e:React.PointerEvent)=>{const d=drag.current;if(!d||d.id!==e.pointerId)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>6)d.moved=true;if(d.moved)setPos(clamp(d.ox+dx,d.oy+dy));};
   const up=(e:React.PointerEvent)=>{const d=drag.current;if(!d||d.id!==e.pointerId)return;drag.current=null;if(d.moved){const p=clamp(d.ox+e.clientX-d.x,d.oy+e.clientY-d.y);const host=root.current?.closest("[data-ui='phone-screen']") as HTMLElement|null;setPos({...p,x:host&&p.x+24>host.clientWidth/2?Math.max(4,host.clientWidth-56):4});}else setExpanded(v=>!v);};
-  if(!player?.currentTrack||hidden||player.floatDismissed)return null;
+  if(!player?.currentTrack||hidden||player.floatDismissed||!floatEnabled)return null;
   const t=player.currentTrack;
   const close=()=>{player.stop();player.dismissFloat();setExpanded(false);};
   return <div ref={root} className={`music-float-v2 music-float-v2-${mode}`} style={mode==="orb"?{left:pos.x,top:pos.y}:undefined} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={()=>{drag.current=null;}}>
