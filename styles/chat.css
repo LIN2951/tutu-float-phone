@@ -8561,3 +8561,20 @@
 
 /* 044 approved Chat transcript menu width; keep for 045 navigation test. */
 .call039-native-chat-menu { width:108px!important; min-width:108px!important; max-width:calc(100vw - 32px)!important; }
+
+
+/* Moments first paint: keep the feed hidden until its initial image batch has
+   been resolved and decoded, then reveal all content in one frame without
+   per-item fade/slide/transition effects. */
+.moments-feed-page.moments-media-preloading > .page-body {
+  visibility: hidden !important;
+}
+.moments-feed-page.moments-media-ready,
+.moments-feed-page.moments-media-ready * {
+  animation: none !important;
+  transition: none !important;
+}
+.moments-feed-page.moments-media-ready img {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
