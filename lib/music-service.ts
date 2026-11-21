@@ -811,6 +811,9 @@ export async function addTracksToPlaylist(playlistId: number, trackIds: number[]
         const resp = await fetch(withNeteaseParams(`${base}/playlist/tracks?op=add&pid=${playlistId}&tracks=${trackIds.join(",")}&timestamp=${Date.now()}`));
         const data = await resp.json();
         if (data?.body?.code === 200 || data?.status === 200 || data?.code === 200) {
+            cachedUserPlaylists = null;
+            playlistTrackCache.delete(playlistId);
+            window.dispatchEvent(new CustomEvent("music-cloud-playlists-updated", { detail: { playlistId } }));
             return { ok: true, message: "已添加到歌单" };
         }
         if (data?.body?.code === 502) {
@@ -830,6 +833,9 @@ export async function removeTracksFromPlaylist(playlistId: number, trackIds: num
         const resp = await fetch(withNeteaseParams(`${base}/playlist/tracks?op=del&pid=${playlistId}&tracks=${trackIds.join(",")}&timestamp=${Date.now()}`));
         const data = await resp.json();
         if (data?.body?.code === 200 || data?.status === 200 || data?.code === 200) {
+            cachedUserPlaylists = null;
+            playlistTrackCache.delete(playlistId);
+            window.dispatchEvent(new CustomEvent("music-cloud-playlists-updated", { detail: { playlistId } }));
             return { ok: true, message: "已从歌单移除" };
         }
         return { ok: false, message: data?.body?.message || data?.message || "移除失败" };
