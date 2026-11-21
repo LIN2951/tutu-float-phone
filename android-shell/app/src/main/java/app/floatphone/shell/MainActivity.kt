@@ -4,14 +4,17 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.DownloadManager
 import android.content.Context
+import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
+import android.util.Base64
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.provider.MediaStore
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.JavascriptInterface
@@ -220,6 +223,46 @@ class MainActivity : AppCompatActivity() {
     inner class ShellBridge {
         @JavascriptInterface
         fun getVersion(): String = VERSION
+
+        /**
+         * 将网页生成的 Blob 文件保存到系统公共 Downloads/Float 目录。
+         * WebView 的 a[download] 不会稳定触发 DownloadListener（尤其 blob: URL），
+         * 因此由网页把 base64 交给这个原生桥接方法直接写入 MediaStore。
+         */
+        @JavascriptInterface
+        fun saveBase64File(base64Data: String, fileName: String, mimeType: String): String {
+            return try {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    return "ERROR:当前 Android 版本暂不支持直接保存到公共下载目录，请更新系统后重试。"
+                }
+                val safeName = fileName.replace(Regex("[\\\\/:*?\\\"<>|]+"), "-")
+                    .ifBlank { "Float-export.zip" }
+                val bytes = Base64.decode(base64Data, Base64.DEFAULT)
+                val values = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, safeName)
+                    put(MediaStore.Downloads.MIME_TYPE, mimeType.ifBlank { "application/zip" })
+                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Float")
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val resolver = contentResolver
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: return "ERROR:无法创建下载文件，请检查手机存储空间。"
+                try {
+                    resolver.openOutputStream(uri)?.use { output -> output.write(bytes) }
+                        ?: throw IllegalStateException("无法写入下载文件")
+                    val completed = ContentValues().apply {
+                        put(MediaStore.Downloads.IS_PENDING, 0)
+                    }
+                    resolver.update(uri, completed, null, null)
+                    "OK"
+                } catch (error: Exception) {
+                    resolver.delete(uri, null, null)
+                    throw error
+                }
+            } catch (error: Exception) {
+                "ERROR:" + (error.message ?: "保存文件失败")
+            }
+        }
 
         /** 打开本应用的系统设置页（引导用户关电池限制、开自启动）。 */
         @JavascriptInterface
