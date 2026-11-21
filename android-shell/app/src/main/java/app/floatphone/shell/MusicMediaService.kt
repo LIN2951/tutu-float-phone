@@ -8,6 +8,8 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.IBinder
 import android.util.Base64
+import java.net.URL
+import android.os.Handler
 import androidx.core.app.NotificationCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 import android.support.v4.media.MediaMetadataCompat
@@ -42,26 +44,34 @@ class MusicMediaService : Service() {
   if(intent?.action==ACTION_UPDATE){
    title=intent.getStringExtra("title").orEmpty().ifBlank{"未知歌曲"}
    artist=intent.getStringExtra("artist").orEmpty(); album=intent.getStringExtra("album").orEmpty()
-   artwork=intent.getStringExtra("artwork").orEmpty(); duration=intent.getLongExtra("duration",0L).coerceAtLeast(0L)
+   artwork=intent.getStringExtra("artwork").orEmpty(); cover=null; loadArtwork(); duration=intent.getLongExtra("duration",0L).coerceAtLeast(0L)
    position=intent.getLongExtra("position",0L).coerceAtLeast(0L); playing=intent.getBooleanExtra("playing",false); liked=intent.getBooleanExtra("liked",false)
    updateSessionAndNotification()
   }
   return START_STICKY
+ }
+ private fun loadArtwork() {
+  if (artwork.startsWith("data:image/")) runCatching {
+   val bytes=Base64.decode(artwork.substringAfter(','),Base64.DEFAULT)
+   cover=BitmapFactory.decodeByteArray(bytes,0,bytes.size)
+  } else if (artwork.startsWith("https://")) {
+   Thread {
+    val bitmap=runCatching { URL(artwork).openStream().use { BitmapFactory.decodeStream(it) } }.getOrNull()
+    if(bitmap!=null){cover=bitmap;Handler(mainLooper).post { if(::session.isInitialized && session.isActive) updateSessionAndNotification() }}
+   }.start()
+  }
  }
  private fun dispatch(control:String){sendBroadcast(Intent(ACTION_CONTROL).setPackage(packageName).putExtra("control",control))}
  private fun updateSessionAndNotification(){
   val metadata=MediaMetadataCompat.Builder().putString(MediaMetadataCompat.METADATA_KEY_TITLE,title)
    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST,artist).putString(MediaMetadataCompat.METADATA_KEY_ALBUM,album)
    .putLong(MediaMetadataCompat.METADATA_KEY_DURATION,duration)
-  if(artwork.startsWith("data:image/")) runCatching {
-   val bytes=Base64.decode(artwork.substringAfter(','),Base64.DEFAULT)
-   BitmapFactory.decodeByteArray(bytes,0,bytes.size)?.let{metadata.putBitmap(MediaMetadataCompat.METADATA_KEY_ART,it)}
-  }
+  cover?.let { metadata.putBitmap(MediaMetadataCompat.METADATA_KEY_ART, it) }
   session.setMetadata(metadata.build())
   val actions=PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_SKIP_TO_NEXT or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or PlaybackStateCompat.ACTION_SEEK_TO
   session.setPlaybackState(PlaybackStateCompat.Builder().setActions(actions).setState(if(playing) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED,position,if(playing)1f else 0f).build())
   val notification=NotificationCompat.Builder(this,CHANNEL_ID).setSmallIcon(android.R.drawable.ic_media_play)
-   .setContentTitle(title).setContentText(artist).setSubText("Float").setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+   .setContentTitle(title).setContentText(artist).setSubText("Float").setLargeIcon(cover).setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
    .setOnlyAlertOnce(true).setOngoing(playing)
    .addAction(android.R.drawable.ic_media_previous,"上一首",actionIntent("previous",1))
    .addAction(if(playing)android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,if(playing)"暂停" else "播放",actionIntent(if(playing)"pause" else "play",2))
