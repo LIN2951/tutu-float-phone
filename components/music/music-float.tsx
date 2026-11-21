@@ -203,7 +203,7 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
                         <section className="mf-island-card" data-retracting={retracting ? "" : undefined} onClick={() => { if (!retracting) player.openFullPlayer(); }}>
                             <header><span>正在播放</span><button onClick={e => { e.stopPropagation(); closeMusic(); }}>关闭</button></header>
                             <div className="mf-island-track">{track.coverUrl ? <img src={track.coverUrl} alt="" /> : <span>♫</span>}<div><strong>{track.title}</strong><small>{track.artist}</small></div></div>
-                            <input aria-label="歌曲播放进度" type="range" min={0} max={Math.max(1, player.duration || 1)} step={0.1} value={Math.min(player.currentTime, Math.max(1, player.duration || 1))} onClick={e => e.stopPropagation()} onChange={e => player.seek(Number(e.target.value))} />
+                            <input aria-label="歌曲播放进度" type="range" min={0} max={Math.max(0, player.duration || 0)} step={0.1} value={player.duration > 0 ? Math.min(player.currentTime, player.duration) : 0} disabled={player.duration <= 0} onClick={e => e.stopPropagation()} onChange={e => player.seek(Number(e.target.value))} />
                             <nav>
                                 <button onClick={e => { e.stopPropagation(); window.dispatchEvent(new CustomEvent("music-desktop-lyrics-toggle")); }}>词</button>
                                 <button onClick={e => { e.stopPropagation(); player.prev(); }}>上一首</button>
