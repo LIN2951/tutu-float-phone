@@ -170,7 +170,7 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
     const handlePointerUp = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
     const handlePointerCancel = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
 
-    if (!player || !player.currentTrack || hidden || player.floatDismissed || !appearance.enabled) return null;
+    if (!player || !player.currentTrack || hidden || player.floatDismissed || !appearance.enabled || appearance.mode === "island") return null;
 
     const track = player.currentTrack;
     const floatSize = appearance.size ?? 72;
