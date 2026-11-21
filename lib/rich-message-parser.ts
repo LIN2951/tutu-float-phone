@@ -725,7 +725,8 @@ export function sanitizeAssistantDisplayText(input: string): string {
 
 // ── Main parser ──────────────────────────────────────────
 
-export function parseAIResponse(rawText: string, previousState: StateValue[]): ParsedAIResponse {\n    rawText = sanitizeAssistantDisplayText(rawText);
+export function parseAIResponse(rawText: string, previousState: StateValue[]): ParsedAIResponse {
+    rawText = sanitizeAssistantDisplayText(rawText);
     const acceptedAvatarRecommendation = /[\[【]\s*接受头像推荐\s*[\]】]/.test(rawText);
     const declinedAvatarRecommendation = /[\[【]\s*拒绝头像推荐\s*[\]】]/.test(rawText);
     const characterRemarkMatch = rawText.match(/[\[【]\s*(?:给用户备注|给你备注|用户备注)\s*[：:]\s*([^\]】\n]{1,40})\s*[\]】]/);
