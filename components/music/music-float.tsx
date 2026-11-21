@@ -37,9 +37,7 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
         startedOnInfo: false,
     });
     const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const tuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [expanded, setExpanded] = useState(false);
-    const [tucked, setTucked] = useState(false);
     const [dismissing, setDismissing] = useState(false);
     const [appearance, setAppearance] = useState(() => loadMusicFloatAppearance());
 
@@ -63,29 +61,11 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
         };
     }, []);
 
-    const snapToEdge = useCallback((x: number, y: number) => {
-        const el = floatRef.current;
-        const parent = el?.closest("[data-ui='phone-screen']") as HTMLElement | null;
-        if (!el || !parent) return { x, y };
-        const width = parent.clientWidth;
-        const left = x + el.offsetWidth / 2 < width / 2;
-        return clampPos(left ? 10 : width - el.offsetWidth - 10, y);
-    }, [clampPos]);
-
-    useEffect(() => {
-        if (tuckTimerRef.current) clearTimeout(tuckTimerRef.current);
-        if (expanded || dismissing || dragRef.current.active) return;
-        tuckTimerRef.current = setTimeout(() => setTucked(true), 2800);
-        return () => { if (tuckTimerRef.current) clearTimeout(tuckTimerRef.current); };
-    }, [expanded, dismissing, pos]);
-
     const dismissFloat = useCallback(() => {
         if (!player) return;
         if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-        setTucked(false);
         setDismissing(true);
         dismissTimerRef.current = setTimeout(() => {
-            player.stop();
             player.dismissFloat();
             setDismissing(false);
             setExpanded(false);
@@ -95,7 +75,6 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
 
     useEffect(() => () => {
         if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-        if (tuckTimerRef.current) clearTimeout(tuckTimerRef.current);
     }, []);
 
     const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -171,16 +150,11 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
         }
 
         if (d.moved) {
-            setPos(snapToEdge(finalPos.x, finalPos.y));
-            setTucked(false);
+            setPos(finalPos);
             return;
         }
 
         if (!d.moved && player) {
-            if (tucked) {
-                setTucked(false);
-                return;
-            }
             if (d.startedOnInfo) {
                 player.openFullPlayer();
                 return;
@@ -191,12 +165,12 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
                 return !prev;
             });
         }
-    }, [player, clampPos, snapToEdge, dismissFloat, tucked]);
+    }, [player, clampPos, dismissFloat]);
 
     const handlePointerUp = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
     const handlePointerCancel = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
 
-    if (!player || !player.currentTrack || hidden || player.floatDismissed || !appearance.enabled || appearance.mode === "island") return null;
+    if (!player || !player.currentTrack || hidden || player.floatDismissed || !appearance.enabled) return null;
 
     const track = player.currentTrack;
     const floatSize = appearance.size ?? 72;
@@ -215,24 +189,31 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
             data-float-shape={appearance.shape}
             {...(appearance.image ? { "data-custom-image": "" } : {})}
             {...(expanded ? { "data-expanded": "" } : {})}
-            {...(tucked ? { "data-tucked": "" } : {})}
             {...(dismissing ? { "data-dismissing": "" } : {})}
-            style={{ left: 0, top: 0, translate: `${pos.x + (tucked ? (pos.x < 180 ? -floatSize * 0.46 : floatSize * 0.46) : 0)}px ${pos.y}px`, "--music-float-size": `${floatSize}px`, "--music-float-accent": MUSIC_FLOAT_COLORS.find(item => item.id === appearance.color)?.value || "#9b8cff" } as React.CSSProperties}
+            style={{ left: 0, top: 0, translate: `${pos.x}px ${pos.y}px`, "--music-float-size": `${floatSize}px`, "--music-float-accent": MUSIC_FLOAT_COLORS.find(item => item.id === appearance.color)?.value || "#9b8cff" } as React.CSSProperties}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerCancel}
         >
             <div className="music-float-inner">
-                {/* Current track cover — follows the active song automatically. */}
+                {/* Cover art */}
                 <div className="music-float-cover-wrap" {...(player.isPlaying ? { "data-playing": "" } : {})}>
-                    {appearance.image ? (
-                        <img src={appearance.image} alt="" className="music-float-cover-img" draggable={false} />
-                    ) : track.coverUrl ? (
-                        <img src={track.coverUrl} alt="" className="music-float-cover-img" draggable={false} />
-                    ) : (
-                        <div className="music-float-cover-placeholder">♫</div>
-                    )}
+                    <div className="music-float-vinyl-groove music-float-vinyl-groove-1" />
+                    <div className="music-float-vinyl-groove music-float-vinyl-groove-2" />
+                    <div className="music-float-vinyl-center">
+                        {appearance.image ? (
+                            <img src={appearance.image} alt="" className="music-float-cover-img" draggable={false} />
+                        ) : track.coverUrl ? (
+                            <img src={track.coverUrl} alt="" className="music-float-cover-img" draggable={false} />
+                        ) : (
+                            <div className="music-float-cover-placeholder">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                    <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+                                </svg>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Track Info */}
