@@ -5218,3 +5218,27 @@
 @media (prefers-reduced-motion: reduce) {
     .music-float { transition: none !important; }
 }
+
+
+.music-float[data-expanded] {
+    width: 264px;
+    height: 104px;
+}
+.music-float-progress {
+    position: absolute;
+    left: 15px;
+    right: 15px;
+    bottom: 7px;
+    height: 5px;
+    z-index: 3;
+}
+.music-float-progress input {
+    display: block;
+    width: 100%;
+    height: 5px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--music-float-accent, var(--c-music-accent));
+    cursor: pointer;
+    touch-action: pan-x;
+}
