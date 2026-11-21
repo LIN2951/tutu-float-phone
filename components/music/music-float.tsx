@@ -224,23 +224,15 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
             onPointerCancel={handlePointerCancel}
         >
             <div className="music-float-inner">
-                {/* Cover art */}
+                {/* Current track cover — follows the active song automatically. */}
                 <div className="music-float-cover-wrap" {...(player.isPlaying ? { "data-playing": "" } : {})}>
-                    <div className="music-float-vinyl-groove music-float-vinyl-groove-1" />
-                    <div className="music-float-vinyl-groove music-float-vinyl-groove-2" />
-                    <div className="music-float-vinyl-center">
-                        {appearance.image ? (
-                            <img src={appearance.image} alt="" className="music-float-cover-img" draggable={false} />
-                        ) : track.coverUrl ? (
-                            <img src={track.coverUrl} alt="" className="music-float-cover-img" draggable={false} />
-                        ) : (
-                            <div className="music-float-cover-placeholder">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                    <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-                                </svg>
-                            </div>
-                        )}
-                    </div>
+                    {appearance.image ? (
+                        <img src={appearance.image} alt="" className="music-float-cover-img" draggable={false} />
+                    ) : track.coverUrl ? (
+                        <img src={track.coverUrl} alt="" className="music-float-cover-img" draggable={false} />
+                    ) : (
+                        <div className="music-float-cover-placeholder">♫</div>
+                    )}
                 </div>
 
                 {/* Track Info */}
