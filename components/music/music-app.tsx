@@ -1871,6 +1871,18 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
                         <button className="music-settings-btn" {...(!floatAppearance.enabled ? { "data-on": "" } : {})} onClick={() => applyFloatAppearance({ ...floatAppearance, enabled: false })}>隐藏悬浮球</button>
                     </div>
 
+                    <div className="music-settings-label" style={{ marginTop: 14 }}>悬浮球大小 · {floatAppearance.size ?? 72}px</div>
+                    <input
+                        className="music-settings-input"
+                        type="range"
+                        min={48}
+                        max={112}
+                        step={4}
+                        value={floatAppearance.size ?? 72}
+                        onChange={event => applyFloatAppearance({ ...floatAppearance, size: Number(event.target.value) })}
+                        aria-label="调整悬浮球大小"
+                    />
+
                     <div className="music-settings-label" style={{ marginTop: 14 }}>悬浮球颜色</div>
                     <div className="music-float-choice-grid">
                         {MUSIC_FLOAT_COLORS.map(color => (
