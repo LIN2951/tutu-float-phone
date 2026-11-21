@@ -158,7 +158,6 @@ export const MUSIC_FLOAT_CARD_STYLES = [
 ] as const;
 
 export const MUSIC_FLOAT_SHAPES = [
-    { id: "vinyl", label: "黑胶唱片" },
     { id: "circle", label: "圆形封面" },
     { id: "rounded", label: "圆角方形" },
     { id: "glow", label: "柔光圆球" },
