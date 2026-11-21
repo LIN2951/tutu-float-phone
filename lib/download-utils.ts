@@ -26,8 +26,21 @@ async function blobToBase64(blob: Blob): Promise<string> {
 }
 
 export async function downloadFile(blob: Blob, filename: string, options: DownloadFileOptions = {}): Promise<void> {
-    // Capacitor WebView 不一定会响应 <a download>，因此原生 APK 必须先把文件
-    // 写入应用缓存，再交给系统分享面板；用户可在面板中选择“保存到文件/下载”。
+    // Float Android APK 使用自定义 AndroidShell WebView。blob: 下载不会进入
+    // DownloadListener，必须把 Blob 内容交给原生桥接并写入公共 Downloads/Float。
+    const androidShell = (window as Window & {
+        AndroidShell?: { saveBase64File?: (data: string, name: string, mime: string) => string };
+    }).AndroidShell;
+    if (!options.disableNativeShare && typeof androidShell?.saveBase64File === "function") {
+        const data = await blobToBase64(blob);
+        const result = androidShell.saveBase64File(data, filename, blob.type || "application/zip");
+        if (result !== "OK") {
+            throw new Error(result?.startsWith("ERROR:") ? result.slice(6) : "Float 无法保存主题文件，请重试。");
+        }
+        return;
+    }
+
+    // Capacitor WebView 不一定会响应 <a download>，因此 Capacitor 原生端使用文件分享兜底。
     if (!options.disableNativeShare) {
         try {
             const { Capacitor } = await import("@capacitor/core");
