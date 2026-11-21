@@ -1096,7 +1096,7 @@ function loadLocalRecentMusicTracks(): NeteaseSearchResult[] {
 
 export async function getRecentSongs(limit = 100): Promise<NeteaseSearchResult[]> {
     const base = neteaseBase();
-    if (!base) return [];
+    if (!base) return loadLocalRecentMusicTracks().slice(0, limit);
     try {
         const resp = await fetch(withNeteaseParams(`${base}/record/recent/song?limit=${limit}&timestamp=${Date.now()}`));
         const data = await resp.json();
