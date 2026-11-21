@@ -4403,6 +4403,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
           "--status-bar-drop": `${draftTheme.statusBarDropPx ?? 0}px`
         } as React.CSSProperties}
         data-hide-top-bar={draftTheme.hideTopBar ? "1" : "0"}
+        data-no-entry-motion={startupLocked || !desktopReady ? "1" : "0"}
       >
         {/* User's global custom CSS is injected via useEffect into document.head */}
         <div className="phone-case">

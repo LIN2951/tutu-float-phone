@@ -393,7 +393,7 @@
   display: flex;
   flex-direction: row;
   width: 100%;
-  will-change: transform;
+  will-change: auto;
   /* Single source of truth: --swipe-page (React) = current page; --swipe-drag
      (set imperatively while the finger is down) = live offset. */
   transform: translate3d(calc(-100% * var(--swipe-page, 0) + var(--swipe-drag, 0px)), 0, 0);
@@ -1161,6 +1161,15 @@
 
 /* ── Mobile responsive ── */
 
+/* Use the currently visible viewport, not the largest possible viewport.
+   This prevents browser chrome/status-bar changes from leaving a clipped top
+   or bottom strip on Android browsers. */
+:root { --app-viewport-height: 100vh; }
+@supports (height: 100dvh) {
+  :root { --app-viewport-height: 100dvh; }
+}
+
+
 /* 不限宽度：纯触摸设备一律手机壳全屏（平板不再落进桌面 mockup 白边）。
    与 lib/mobile-shell.ts 的 MOBILE_SHELL_MQ 保持一致。 */
 @media (hover: none) and (pointer: coarse) {
@@ -1195,20 +1204,20 @@
      屏幕尺寸变量除以 zoom——壳内有效视口按设计稿比例缩小，渲染后仍铺满全屏。 */
   :root {
     --phone-screen-width: calc(100vw / var(--shell-zoom, 1));
-    --phone-screen-height: calc(100lvh / var(--shell-zoom, 1));
+    --phone-screen-height: calc(var(--app-viewport-height, 100vh) / var(--shell-zoom, 1));
   }
 
   html,
   body {
     overflow: hidden;
     width: 100%;
-    height: 100lvh;
+    height: var(--app-viewport-height, 100vh);
     background: var(--c-page-body-bg);
   }
 
   .app-root {
     width: 100vw;
-    height: 100lvh;
+    height: var(--app-viewport-height, 100vh);
     padding: 0;
     display: flex;
     justify-content: flex-start;
@@ -1237,7 +1246,7 @@
        drop/lift 是用户校准/JS 实测的物理像素，除以 zoom 抵消壳内再放大。 */
     margin-top: calc(-1 * var(--status-bar-drop, 0px) / var(--shell-zoom, 1));
     transform: translate3d(0, calc(-1 * var(--mobile-keyboard-lift, 0px) / var(--shell-zoom, 1)), 0);
-    transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: none;
     will-change: transform;
   }
 
@@ -1266,7 +1275,7 @@
 
   .app-root.splash-root {
     width: 100vw;
-    height: 100lvh;
+    height: var(--app-viewport-height, 100vh);
     margin: 0;
     padding: 0;
     display: flex;
@@ -1311,20 +1320,20 @@
    data-force-mobile，由这组规则接管。修改上方媒体块时务必同步这里。 */
 html[data-force-mobile] {
   --phone-screen-width: calc(100vw / var(--shell-zoom, 1));
-  --phone-screen-height: calc(100lvh / var(--shell-zoom, 1));
+  --phone-screen-height: calc(var(--app-viewport-height, 100vh) / var(--shell-zoom, 1));
 }
 
 html[data-force-mobile],
 html[data-force-mobile] body {
   overflow: hidden;
   width: 100%;
-  height: 100lvh;
+  height: var(--app-viewport-height, 100vh);
   background: var(--c-page-body-bg);
 }
 
 html[data-force-mobile] .app-root {
   width: 100vw;
-  height: 100lvh;
+  height: var(--app-viewport-height, 100vh);
   padding: 0;
   display: flex;
   justify-content: flex-start;
@@ -1375,7 +1384,7 @@ html[data-force-mobile] .phone-shell-wrap .phone-frame::after {
 
 html[data-force-mobile] .app-root.splash-root {
   width: 100vw;
-  height: 100lvh;
+  height: var(--app-viewport-height, 100vh);
   margin: 0;
   padding: 0;
   display: flex;
@@ -1803,3 +1812,15 @@ html[data-zoom-fallback] .phone-shell-wrap {
 }
 .app-notice-switch[aria-checked="true"] { background:var(--notice-accent, var(--c-primary, #1d9bf0)); }
 .app-notice-switch[aria-checked="true"] > i { transform:translateX(14px); }
+
+
+/* Keep the lock screen and the first desktop frame visually stable.
+   Hydration and local layout restoration must not animate/scale the screen. */
+.phone-shell-wrap[data-no-entry-motion="1"],
+.phone-shell-wrap[data-no-entry-motion="1"] *,
+.phone-shell-wrap[data-no-entry-motion="1"] *::before,
+.phone-shell-wrap[data-no-entry-motion="1"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
