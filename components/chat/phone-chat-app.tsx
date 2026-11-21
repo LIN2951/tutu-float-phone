@@ -47,6 +47,12 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
     // Cache all visited sessions so their ChatRoom stays mounted (hidden)
     const [visitedSessions, setVisitedSessions] = useState<Map<string, ChatSession>>(new Map());
     const [dbReady, setDbReady] = useState(false);
+    // Keep the feed mounted after its first visit. Re-entering Moments then
+    // reveals the already-rendered page instead of remounting and flashing it.
+    const [momentsVisited, setMomentsVisited] = useState(false);
+    useEffect(() => {
+        if (activeTab === "feeds") setMomentsVisited(true);
+    }, [activeTab]);
     const [nightMode, setNightMode] = useState(loadChatNightMode);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
     useEffect(() => {
@@ -301,7 +307,11 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
                         }}
                     />
                 )}
-                {activeTab === "feeds" && <MomentsFeed onCloseApp={onClose} />}
+                {momentsVisited && (
+                    <div className="absolute inset-0" style={{ display: activeTab === "feeds" ? "flex" : "none" }}>
+                        <MomentsFeed onCloseApp={onClose} />
+                    </div>
+                )}
                 {activeTab === "me" && <UserProfilePanel onClose={() => setActiveTab("contacts")} />}
             </div>
 
