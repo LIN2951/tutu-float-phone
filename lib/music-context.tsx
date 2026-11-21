@@ -479,6 +479,18 @@ export function MusicProvider({ children }: { children: ReactNode }) {
             try { session.setActionHandler(action, handler); } catch { /* unsupported action */ }
         }
         const shell = (window as Window & { AndroidShell?: { updateMediaSession?: (json: string) => void } }).AndroidShell;
+        const onNativeMediaAction = (event: Event) => {
+            const detail = (event as CustomEvent<{ control?: string; position?: number }>).detail;
+            switch (detail?.control) {
+                case "play": resume(); break;
+                case "pause": pause(); break;
+                case "next": next(); break;
+                case "previous": prev(); break;
+                case "like": setTrackLiked(currentTrack.id, !currentTrack.liked); break;
+                case "seek": if (typeof detail.position === "number" && detail.position >= 0) seek(detail.position / 1000); break;
+            }
+        };
+        window.addEventListener("float-native-media-action", onNativeMediaAction);
         shell?.updateMediaSession?.(JSON.stringify({
             title: currentTrack.title || "未知歌曲",
             artist: currentTrack.artist || "未知歌手",
@@ -490,6 +502,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
             liked: !!currentTrack.liked,
         }));
         return () => {
+            window.removeEventListener("float-native-media-action", onNativeMediaAction);
             for (const [action] of handlers) {
                 try { session.setActionHandler(action, null); } catch { /* unsupported action */ }
             }
