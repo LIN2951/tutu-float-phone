@@ -5176,7 +5176,7 @@
 
 /* Float orb refresh: configurable compact cover, shape and low-jank dragging. */
 .music-float {
-    will-change: left, top, transform;
+    will-change: translate, transform;
     transform: translateZ(0);
     backface-visibility: hidden;
 }
