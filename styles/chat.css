@@ -8578,3 +8578,24 @@
   opacity: 1 !important;
   visibility: visible !important;
 }
+
+
+/* Moments must occupy the full virtual phone viewport; do not inherit a
+   narrow content-column cap from generic page layouts. */
+.chat-app .page-shell.moments-feed-page {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    align-self: stretch;
+}
+.chat-app .page-shell.moments-feed-page > .page-body {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+}
+.chat-app .page-shell.moments-feed-page .moments-profile-hero,
+.chat-app .page-shell.moments-feed-page .moments-featured-section,
+.chat-app .page-shell.moments-feed-page .moments-posts-section {
+    width: 100%;
+    max-width: none;
+}
