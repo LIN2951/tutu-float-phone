@@ -182,8 +182,13 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // 冷启动带深链（如来电接听）直接加载目标；否则加载首页
-        webView.loadUrl(consumeOpenUrl(intent) ?: SITE_URL)
+        // Deep links take priority. Otherwise restore the previous WebView page
+        // when Android recreated this Activity after reclaiming it in background.
+        val openUrl = consumeOpenUrl(intent)
+        val restored = if (openUrl == null && savedInstanceState != null) {
+            runCatching { webView.restoreState(savedInstanceState) != null }.getOrDefault(false)
+        } else false
+        if (!restored) webView.loadUrl(openUrl ?: SITE_URL)
         ensurePushService()
     }
 
@@ -211,6 +216,14 @@ class MainActivity : AppCompatActivity() {
         } else {
             PushService.start(this)
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (::webView.isInitialized) {
+            runCatching { webView.saveState(outState) }
+                .onFailure { android.util.Log.w("FloatLifecycle", "WebView state save skipped", it) }
+        }
+        super.onSaveInstanceState(outState)
     }
 
     override fun onResume() {
