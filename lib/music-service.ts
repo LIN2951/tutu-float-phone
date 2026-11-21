@@ -280,7 +280,7 @@ export async function getNeteaseLyrics(songId: number): Promise<string> {
 }
 
 /** Get song detail (cover, artist ids, etc.) */
-export async function getNeteaseSongDetail(songId: number): Promise<{ coverUrl?: string; name?: string; artists?: string; artistList?: { id: number; name: string }[]; album?: string } | null> {
+export async function getNeteaseSongDetail(songId: number): Promise<{ coverUrl?: string; name?: string; artists?: string; duration?: number; artistList?: { id: number; name: string }[]; album?: string } | null> {
     const base = neteaseBase();
     if (!base) return null;
     try {
@@ -290,6 +290,7 @@ export async function getNeteaseSongDetail(songId: number): Promise<{ coverUrl?:
         if (!song) return null;
         return {
             coverUrl: secureHttpUrl(song.al?.picUrl),
+            duration: Number(song.dt || song.duration || 0) / 1000,
             name: song.name,
             artists: (song.ar || []).map((a: any) => a.name).join("/"),
             artistList: (song.ar || []).filter((a: any) => a?.id && a?.name).map((a: any) => ({ id: a.id, name: a.name })),
@@ -342,31 +343,6 @@ export async function checkLoginStatus(baseUrl: string): Promise<{ loggedIn: boo
         if (profile?.nickname) return { loggedIn: true, nickname: profile.nickname };
         return { loggedIn: false };
     } catch { return { loggedIn: false }; }
-}
-
-
-/** Read the logged-in Netease account's liked song IDs. */
-export async function getCloudSongLiked(songId: number): Promise<boolean> {
-    const base = neteaseBase();
-    if (!base || !Number.isFinite(songId)) return false;
-    const uid = await getLoginUid();
-    if (!uid) return false;
-    try {
-        const resp = await fetch(withNeteaseParams(`${base}/likelist?uid=${uid}&timestamp=${Date.now()}`));
-        const data = await resp.json();
-        return Array.isArray(data?.ids) && data.ids.some((id: number) => Number(id) === songId);
-    } catch { return false; }
-}
-
-/** Update the real Netease account's like state; false means the write was not confirmed. */
-export async function setCloudSongLiked(songId: number, liked: boolean): Promise<boolean> {
-    const base = neteaseBase();
-    if (!base || !Number.isFinite(songId) || !(await getLoginUid())) return false;
-    try {
-        const resp = await fetch(withNeteaseParams(`${base}/like?id=${songId}&like=${liked}&timestamp=${Date.now()}`));
-        const data = await resp.json();
-        return data?.code === 200 && data?.playlistId !== undefined || data?.code === 200;
-    } catch { return false; }
 }
 
 // ── User Playlists ──

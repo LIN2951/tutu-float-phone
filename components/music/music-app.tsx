@@ -29,7 +29,6 @@ import MusicCommentsPage from "./music-comments";
 import {
     loadMusicBg, saveMusicBg, clearMusicBg, fileToCompressedDataUrl, appBgStyle,
     MUSIC_BG_EVENT, type MusicBgConfig, type MusicPlayerBgMode,
-    loadMusicFloatMode, saveMusicFloatMode, type MusicFloatMode,
 } from "@/lib/music-bg";
 
 type Props = { onClose: () => void };
@@ -1523,7 +1522,6 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
     });
     const bgFileRef = useRef<HTMLInputElement>(null);
     const playerFileRef = useRef<HTMLInputElement>(null);
-    const [floatMode, setFloatMode] = useState<MusicFloatMode>(() => loadMusicFloatMode());
 
     const applyBg = (next: MusicBgConfig) => {
         const result = saveMusicBg(next);
@@ -1843,15 +1841,6 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
                         </div>
                     )}
                     {bgMsg && <div className="music-qr-status">{bgMsg}</div>}
-                </div>
-
-                <div className="music-settings-section music-qr-section">
-                    <div className="music-settings-label">后台悬浮样式</div>
-                    <div className="music-settings-hint">选择后台音乐控件的显示方式，切换后立即生效并自动保存</div>
-                    <div className="music-settings-actions">
-                        <button className="music-settings-btn" {...(floatMode === "orb" ? { "data-on": "" } : {})} onClick={() => { saveMusicFloatMode("orb"); setFloatMode("orb"); }}>悬浮球</button>
-                        <button className="music-settings-btn" {...(floatMode === "island" ? { "data-on": "" } : {})} onClick={() => { saveMusicFloatMode("island"); setFloatMode("island"); }}>顶部灵动岛</button>
-                    </div>
                 </div>
             </div>
         </div>
