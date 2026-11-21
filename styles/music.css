@@ -5172,3 +5172,49 @@
     height: 100%;
     object-fit: cover;
 }
+
+
+/* Float orb refresh: configurable compact cover, shape and low-jank dragging. */
+.music-float {
+    will-change: left, top, transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+.music-float:not([data-expanded]) {
+    width: var(--music-float-size, 72px);
+    height: var(--music-float-size, 72px);
+    border-radius: calc(var(--music-float-size, 72px) * .34);
+}
+.music-float:not([data-expanded]) .music-float-cover-wrap {
+    width: calc(var(--music-float-size, 72px) - 16px);
+    height: calc(var(--music-float-size, 72px) - 16px);
+}
+.music-float[data-float-shape="circle"]:not([data-expanded]),
+.music-float[data-float-shape="glow"]:not([data-expanded]) {
+    border-radius: 50%;
+}
+.music-float[data-float-shape="diamond"] .music-float-cover-wrap {
+    border-radius: 8px;
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+.music-float[data-float-shape="diamond"] .music-float-vinyl-groove {
+    display: none;
+}
+.music-float[data-float-shape="pill"]:not([data-expanded]) {
+    border-radius: 999px;
+}
+.music-float[data-float-shape="pill"] .music-float-cover-wrap {
+    border-radius: 999px;
+}
+.music-float .music-float-hide-btn {
+    opacity: .72;
+    width: 30px;
+    height: 30px;
+}
+.music-float .music-float-hide-btn:active {
+    opacity: 1;
+    transform: scale(.9);
+}
+@media (prefers-reduced-motion: reduce) {
+    .music-float { transition: none !important; }
+}
