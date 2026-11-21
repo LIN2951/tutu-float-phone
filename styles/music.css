@@ -1126,22 +1126,64 @@
     padding-left: 12px;
 }
 
-/* ── Music orb cover ── */
+/* ── Cover Art inside float (Mini Vinyl) ── */
 .music-float-cover-wrap {
     width: 56px;
     height: 56px;
+    border-radius: 50%;
     flex-shrink: 0;
     position: relative;
-    overflow: hidden;
+    cursor: pointer;
+    background: radial-gradient(circle,
+            var(--c-music-surface) 0%,
+            var(--c-music-glass-dim) 35%,
+            var(--c-music-glass-dim) 50%,
+            var(--c-music-glass-dim) 65%,
+            var(--c-music-surface) 100%);
+    box-shadow:
+        0 0 0 1px var(--c-music-accent-dim),
+        0 4px 12px var(--c-music-accent-dim),
+        inset 0 0 8px var(--c-music-surface-solid);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.music-float-cover-wrap[data-playing] {
+    animation: music-vinyl-spin 8s linear infinite;
+}
+
+.music-float-vinyl-groove {
+    position: absolute;
     border-radius: 50%;
-    background: transparent;
+    border: 0.5px solid var(--c-music-glass-dim);
+    pointer-events: none;
 }
-.music-float-cover-img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+
+.music-float-vinyl-groove-1 {
+    inset: 15%;
 }
+
+.music-float-vinyl-groove-2 {
+    inset: 30%;
+}
+
+.music-float-vinyl-center {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--c-music-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 0 4px var(--c-music-surface);
+    z-index: 2;
+}
+
+
 .music-float-cover-placeholder {
     width: 100%;
     height: 100%;
@@ -1149,9 +1191,9 @@
     align-items: center;
     justify-content: center;
     color: var(--c-music-accent);
-    font-size: 22px;
+    opacity: 0.6;
 }
- 
+
 /* ── Info Area ── */
 .music-float-info {
     margin: 0 12px;
@@ -5139,13 +5181,13 @@
     backface-visibility: hidden;
 }
 .music-float:not([data-expanded]) {
-    width: var(--music-float-size, 46px);
-    height: var(--music-float-size, 46px);
-    border-radius: calc(var(--music-float-size, 46px) * .34);
+    width: var(--music-float-size, 72px);
+    height: var(--music-float-size, 72px);
+    border-radius: calc(var(--music-float-size, 72px) * .34);
 }
 .music-float:not([data-expanded]) .music-float-cover-wrap {
-    width: calc(var(--music-float-size, 46px) - 16px);
-    height: calc(var(--music-float-size, 46px) - 16px);
+    width: calc(var(--music-float-size, 72px) - 16px);
+    height: calc(var(--music-float-size, 72px) - 16px);
 }
 .music-float[data-float-shape="circle"]:not([data-expanded]),
 .music-float[data-float-shape="glow"]:not([data-expanded]) {
@@ -5200,73 +5242,3 @@
     cursor: pointer;
     touch-action: pan-x;
 }
-
-
-/* Music float rebuilt from the handoff spec: clean cover orb, no vinyl ornament. */
-.music-float {
-    width: var(--music-float-size, 46px);
-    height: var(--music-float-size, 46px);
-    border-radius: 50%;
-    overflow: visible;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-.music-float:not([data-expanded]) {
-    width: var(--music-float-size, 46px);
-    height: var(--music-float-size, 46px);
-}
-.music-float-inner {
-    width: 100%;
-    height: 100%;
-    padding: 0;
-    border-radius: inherit;
-    overflow: hidden;
-    background: rgba(78,78,84,.32);
-    border: 1px solid rgba(255,255,255,.22);
-    box-shadow: 0 8px 24px rgba(0,0,0,.18);
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
-}
-.music-float-cover-wrap {
-    width: calc(var(--music-float-size, 46px) - 2px);
-    height: calc(var(--music-float-size, 46px) - 2px);
-    flex: 0 0 auto;
-    border-radius: inherit;
-    overflow: hidden;
-    background: transparent;
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    animation: none !important;
-}
-
-.music-float-cover-img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.music-float[data-float-shape="circle"]:not([data-expanded]),
-.music-float[data-float-shape="circle"] .music-float-inner,
-.music-float[data-float-shape="circle"] .music-float-cover-wrap { border-radius: 50%; }
-.music-float[data-float-shape="square"]:not([data-expanded]),
-.music-float[data-float-shape="square"] .music-float-inner { border-radius: 18px; }
-.music-float[data-float-shape="square"] .music-float-cover-wrap { border-radius: 14px; }
-.music-float[data-expanded] {
-    width: 264px;
-    height: 104px;
-    border-radius: 24px;
-}
-.music-float[data-expanded] .music-float-inner {
-    width: 264px;
-    height: 104px;
-    padding: 0 12px;
-    border-radius: 24px;
-}
-.music-float[data-expanded] .music-float-cover-wrap {
-    width: 56px;
-    height: 56px;
-    border-radius: 14px;
-}
-.music-float[data-expanded][data-float-shape="circle"] .music-float-cover-wrap { border-radius: 50%; }
-.music-float[data-expanded][data-float-shape="square"] .music-float-cover-wrap { border-radius: 12px; }
-.music-float[data-tucked] { opacity: .32; }
-.music-float[data-tucked]:active { opacity: .82; }
