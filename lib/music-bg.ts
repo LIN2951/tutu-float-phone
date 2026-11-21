@@ -131,6 +131,8 @@ export type MusicFloatAppearance = {
     cardStyle: string;
     shape: string;
     image: string;
+    /** Floating cover size in CSS pixels. */
+    size?: number;
 };
 
 const MUSIC_FLOAT_APPEARANCE_KEY = "music-float-appearance-v1";
@@ -160,10 +162,12 @@ export const MUSIC_FLOAT_SHAPES = [
     { id: "circle", label: "圆形封面" },
     { id: "rounded", label: "圆角方形" },
     { id: "glow", label: "柔光圆球" },
+    { id: "diamond", label: "菱形封面" },
+    { id: "pill", label: "胶囊形" },
 ] as const;
 
 export const DEFAULT_MUSIC_FLOAT_APPEARANCE: MusicFloatAppearance = {
-    enabled: true, color: "violet", cardStyle: "glass", shape: "vinyl", image: "",
+    enabled: true, color: "violet", cardStyle: "glass", shape: "circle", image: "", size: 72,
 };
 
 export function loadMusicFloatAppearance(): MusicFloatAppearance {
@@ -178,6 +182,7 @@ export function loadMusicFloatAppearance(): MusicFloatAppearance {
             cardStyle: MUSIC_FLOAT_CARD_STYLES.some(item => item.id === value.cardStyle) ? value.cardStyle! : "glass",
             shape: MUSIC_FLOAT_SHAPES.some(item => item.id === value.shape) ? value.shape! : "vinyl",
             image: typeof value.image === "string" ? value.image : "",
+            size: Number.isFinite(value.size) ? Math.max(48, Math.min(112, Number(value.size))) : 72,
         };
     } catch { return DEFAULT_MUSIC_FLOAT_APPEARANCE; }
 }
