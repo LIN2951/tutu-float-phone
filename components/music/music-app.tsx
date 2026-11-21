@@ -205,9 +205,9 @@ export default function MusicApp({ onClose }: Props) {
             showMusicToast(info.reason || "加载失败，请稍后重试", 2600);
             return;
         }
-        const detail = await getNeteaseSongDetail(result.id);
-        const lyrics = await getNeteaseLyrics(result.id);
-        const track = toMusicTrack(result, { lyrics, coverUrl: detail?.coverUrl, name: detail?.name, artists: detail?.artists });
+        // Start audio as soon as the play URL is ready. Search results already
+        // contain title/artist/cover; detail and lyrics must not block playback.
+        const track = toMusicTrack(result);
         // Prepend to existing queue
         if (!player.queue.some(t => t.id === track.id)) {
             player.setQueue([track, ...player.queue]);
