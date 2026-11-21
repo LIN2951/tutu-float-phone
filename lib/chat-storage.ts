@@ -2240,6 +2240,20 @@ export function updateMessageMediaStatus(messageId: string, newStatus: "pending"
 }
 
 /** Update the full mediaData of a message (for group red packet claims, etc.). */
+/** Persist the last valid position on each fixed-song message, including unmounted cards. */
+export function syncSharedMusicPosition(trackId: string, position: number, duration: number) {
+    if (!trackId || !Number.isFinite(position) || position < 0) return;
+    for (const message of _messagesCache) {
+        if (message.mediaType !== "music_share" || message.mediaData?.musicTrackId !== trackId) continue;
+        message.mediaData = {
+            ...message.mediaData,
+            musicLastPosition: position,
+            ...(Number.isFinite(duration) && duration > 0 ? { musicDuration: duration } : {}),
+        };
+        dbPutMessage(message);
+    }
+}
+
 export function updateMessageMediaData(messageId: string, data: ChatMessage["mediaData"]) {
     const idx = _messagesCache.findIndex(m => m.id === messageId);
     if (idx !== -1) {
