@@ -1067,14 +1067,44 @@ export async function getUserEvents(limit = 30): Promise<NeteaseUserEvent[]> {
 }
 
 /** 真·最近播放（跨设备）/record/recent/song */
+const LOCAL_RECENT_MUSIC_KEY = "music-local-recent-netease-v1";
+
+export function recordMusicRecentTrack(track: MusicTrack): void {
+    if (!track.id.startsWith("netease_")) return;
+    const id = Number(track.id.slice("netease_".length));
+    if (!Number.isFinite(id) || id <= 0) return;
+    try {
+        const raw = kvGet(LOCAL_RECENT_MUSIC_KEY);
+        const previous = raw ? JSON.parse(raw) as Array<{ song: NeteaseSearchResult; playedAt: string }> : [];
+        const song: NeteaseSearchResult = {
+            id, name: track.title, artists: track.artist, album: track.album || "",
+            duration: track.duration * 1000, coverUrl: track.coverUrl,
+        };
+        const next = [{ song, playedAt: new Date().toISOString() }, ...previous.filter(item => item?.song?.id !== id)].slice(0, 100);
+        kvSet(LOCAL_RECENT_MUSIC_KEY, JSON.stringify(next));
+    } catch { /* recent history is best-effort; never interrupt playback */ }
+}
+
+function loadLocalRecentMusicTracks(): NeteaseSearchResult[] {
+    try {
+        const raw = kvGet(LOCAL_RECENT_MUSIC_KEY);
+        if (!raw) return [];
+        const rows = JSON.parse(raw) as Array<{ song: NeteaseSearchResult; playedAt: string }>;
+        return Array.isArray(rows) ? rows.sort((a, b) => b.playedAt.localeCompare(a.playedAt)).map(row => row.song).filter(song => song?.id) : [];
+    } catch { return []; }
+}
+
 export async function getRecentSongs(limit = 100): Promise<NeteaseSearchResult[]> {
     const base = neteaseBase();
     if (!base) return [];
     try {
         const resp = await fetch(withNeteaseParams(`${base}/record/recent/song?limit=${limit}&timestamp=${Date.now()}`));
         const data = await resp.json();
-        return (data?.data?.list || []).map((item: any) => mapSongToSearchResult(item.data || {})).filter((s: NeteaseSearchResult) => s.id);
-    } catch { return []; }
+        const remote = (data?.data?.list || []).map((item: any) => mapSongToSearchResult(item.data || {})).filter((s: NeteaseSearchResult) => s.id);
+        const merged = new Map<number, NeteaseSearchResult>();
+        for (const song of [...loadLocalRecentMusicTracks(), ...remote]) if (!merged.has(song.id)) merged.set(song.id, song);
+        return Array.from(merged.values()).slice(0, limit);
+    } catch { return loadLocalRecentMusicTracks().slice(0, limit); }
 }
 
 /** 心动模式 /playmode/intelligence/list —— 以喜欢列表为底、种子歌曲展开的智能队列 */
