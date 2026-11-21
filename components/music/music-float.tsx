@@ -19,11 +19,8 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
     const [unlockLyrics, setUnlockLyrics] = useState(0);
     useEffect(() => {
         const toggle = () => {
-            setLyricsOpen(value => {
-                if (value) return false;
-                setUnlockLyrics(v => v + 1);
-                return true;
-            });
+            setLyricsOpen(true);
+            setUnlockLyrics(value => value + 1);
         };
         window.addEventListener("music-desktop-lyrics-toggle", toggle);
         return () => window.removeEventListener("music-desktop-lyrics-toggle", toggle);
