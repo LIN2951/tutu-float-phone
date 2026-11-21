@@ -445,6 +445,57 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         };
     }, [playResolvedTrack, queue]);
 
+    // Publish real track metadata to browser/Android system media controls.
+    useEffect(() => {
+        if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+        const session = navigator.mediaSession;
+        if (!currentTrack) {
+            session.metadata = null;
+            session.playbackState = "none";
+            return;
+        }
+        if ("MediaMetadata" in window) {
+            session.metadata = new MediaMetadata({
+                title: currentTrack.title || "未知歌曲",
+                artist: currentTrack.artist || "未知歌手",
+                album: currentTrack.album || "Float",
+                artwork: currentTrack.coverUrl ? [
+                    { src: currentTrack.coverUrl, sizes: "96x96" },
+                    { src: currentTrack.coverUrl, sizes: "256x256" },
+                    { src: currentTrack.coverUrl, sizes: "512x512" },
+                ] : [],
+            });
+        }
+        session.playbackState = isPlaying ? "playing" : "paused";
+        const handlers: Array<[MediaSessionAction, MediaSessionActionHandler]> = [
+            ["play", () => resume()],
+            ["pause", () => pause()],
+            ["previoustrack", () => prev()],
+            ["nexttrack", () => next()],
+            ["seekto", (details) => { if (typeof details.seekTime === "number") seek(details.seekTime); }],
+            ["like", () => setTrackLiked(currentTrack.id, !currentTrack.liked)],
+        ];
+        for (const [action, handler] of handlers) {
+            try { session.setActionHandler(action, handler); } catch { /* unsupported action */ }
+        }
+        const shell = (window as Window & { AndroidShell?: { updateMediaSession?: (json: string) => void } }).AndroidShell;
+        shell?.updateMediaSession?.(JSON.stringify({
+            title: currentTrack.title || "未知歌曲",
+            artist: currentTrack.artist || "未知歌手",
+            album: currentTrack.album || "Float",
+            artwork: currentTrack.coverUrl || "",
+            duration: Number.isFinite(duration) ? duration : 0,
+            position: Number.isFinite(currentTime) ? currentTime : 0,
+            playing: isPlaying,
+            liked: !!currentTrack.liked,
+        }));
+        return () => {
+            for (const [action] of handlers) {
+                try { session.setActionHandler(action, null); } catch { /* unsupported action */ }
+            }
+        };
+    }, [currentTrack, isPlaying, duration, currentTime, resume, pause, prev, next, seek, setTrackLiked]);
+
     useEffect(() => {
         registerMusicControlBridge({
             getState: () => ({
