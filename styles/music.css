@@ -5323,3 +5323,6 @@
 .music-float[data-expanded][data-float-shape="circle"] .music-float-vinyl-center { border-radius: 50%; }
 .music-float[data-expanded][data-float-shape="square"] .music-float-cover-wrap,
 .music-float[data-expanded][data-float-shape="square"] .music-float-vinyl-center { border-radius: 12px; }
+
+.music-float[data-tucked] { opacity: .32; }
+.music-float[data-tucked]:active { opacity: .82; }
