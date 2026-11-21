@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMusicControlsOptional } from "@/lib/music-context";
-import { loadMusicFloatAppearance, MUSIC_FLOAT_APPEARANCE_EVENT, MUSIC_FLOAT_COLORS } from "@/lib/music-bg";
+import { loadMusicFloatAppearance, saveMusicFloatAppearance, MUSIC_FLOAT_APPEARANCE_EVENT, MUSIC_FLOAT_COLORS } from "@/lib/music-bg";
 
 const DRAG_START_THRESHOLD = 6;
 const SWIPE_DISMISS_EDGE_X = 4;
@@ -173,6 +173,12 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
     if (!player || !player.currentTrack || hidden || player.floatDismissed || !appearance.enabled) return null;
 
     const track = player.currentTrack;
+    const floatSize = appearance.size ?? 72;
+    const hideFromFloat = () => {
+        const next = { ...appearance, enabled: false };
+        const result = saveMusicFloatAppearance(next);
+        if (result.ok) setAppearance(next);
+    };
 
     return (
         <div
@@ -184,7 +190,7 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
             {...(appearance.image ? { "data-custom-image": "" } : {})}
             {...(expanded ? { "data-expanded": "" } : {})}
             {...(dismissing ? { "data-dismissing": "" } : {})}
-            style={{ left: pos.x, top: pos.y, "--music-float-accent": MUSIC_FLOAT_COLORS.find(item => item.id === appearance.color)?.value || "#9b8cff" } as React.CSSProperties}
+            style={{ left: pos.x, top: pos.y, "--music-float-size": `${floatSize}px`, "--music-float-accent": MUSIC_FLOAT_COLORS.find(item => item.id === appearance.color)?.value || "#9b8cff" } as React.CSSProperties}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -234,10 +240,13 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
                             </svg>
                         )}
                     </button>
-                    <button className="music-float-btn" onClick={(e) => { e.stopPropagation(); player.next(); }}>
+                    <button className="music-float-btn" onClick={(e) => { e.stopPropagation(); player.next(); }} aria-label="下一首">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M6 18l8.5-6L6 6v12zm8.5 0h2V6h-2v12z" />
                         </svg>
+                    </button>
+                    <button className="music-float-btn music-float-hide-btn" onClick={(e) => { e.stopPropagation(); hideFromFloat(); }} aria-label="隐藏悬浮球" title="隐藏悬浮球">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
                     </button>
                 </div>
             </div>
