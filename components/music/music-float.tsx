@@ -1,268 +1,42 @@
-// components/music/music-float.tsx — Floating music control widget (draggable vinyl)
 "use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMusicPlayerOptional } from "@/lib/music-context";
-import { loadMusicFloatAppearance, saveMusicFloatAppearance, MUSIC_FLOAT_APPEARANCE_EVENT, MUSIC_FLOAT_COLORS } from "@/lib/music-bg";
-
-const DRAG_START_THRESHOLD = 6;
-const SWIPE_DISMISS_EDGE_X = 4;
-const SWIPE_DISMISS_SPEED = 1.5; // px/ms
-const SWIPE_DISMISS_ARMING_X = 88;
-const SWIPE_INERTIA_MS = 140;
-const SWIPE_VELOCITY_RECENT_MS = 180;
+import { loadMusicFloatMode, MUSIC_FLOAT_MODE_EVENT, type MusicFloatMode } from "@/lib/music-bg";
+import MusicDesktopLyrics from "@/components/music/music-desktop-lyrics";
 
 export default function MusicFloat({ hidden }: { hidden?: boolean }) {
-    const player = useMusicPlayerOptional();
-    const floatRef = useRef<HTMLDivElement>(null);
-    const [pos, setPos] = useState({ x: 310, y: 680 });
-    const dragRef = useRef<{
-        pointerId: number | null; active: boolean;
-        startX: number; startY: number; origX: number; origY: number;
-        lastX: number; lastTime: number;
-        lastLeftSpeed: number; lastLeftSpeedTime: number;
-        moved: boolean; startedOnInfo: boolean;
-    }>({
-        pointerId: null,
-        active: false,
-        startX: 0,
-        startY: 0,
-        origX: 0,
-        origY: 0,
-        lastX: 0,
-        lastTime: 0,
-        lastLeftSpeed: 0,
-        lastLeftSpeedTime: 0,
-        moved: false,
-        startedOnInfo: false,
-    });
-    const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [expanded, setExpanded] = useState(false);
-    const [dismissing, setDismissing] = useState(false);
-    const [appearance, setAppearance] = useState(() => loadMusicFloatAppearance());
-
-    useEffect(() => {
-        const refresh = () => setAppearance(loadMusicFloatAppearance());
-        window.addEventListener(MUSIC_FLOAT_APPEARANCE_EVENT, refresh);
-        return () => window.removeEventListener(MUSIC_FLOAT_APPEARANCE_EVENT, refresh);
-    }, []);
-
-    const clampPos = useCallback((x: number, y: number) => {
-        const el = floatRef.current;
-        const parent = el?.closest("[data-ui='phone-screen']") as HTMLElement | null;
-        if (!el || !parent) return { x, y };
-        const pw = parent.clientWidth;
-        const ph = parent.clientHeight;
-        const ew = el.offsetWidth;
-        const eh = el.offsetHeight;
-        return {
-            x: Math.max(0, Math.min(x, pw - ew)),
-            y: Math.max(0, Math.min(y, ph - eh)),
-        };
-    }, []);
-
-    const dismissFloat = useCallback(() => {
-        if (!player) return;
-        if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-        setDismissing(true);
-        dismissTimerRef.current = setTimeout(() => {
-            player.dismissFloat();
-            setDismissing(false);
-            setExpanded(false);
-            dismissTimerRef.current = null;
-        }, 250);
-    }, [player]);
-
-    useEffect(() => () => {
-        if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-    }, []);
-
-    const handlePointerDown = useCallback((e: React.PointerEvent) => {
-        const target = e.target as HTMLElement;
-        // Let transport buttons keep their native click behavior.
-        if (target.closest("button, input")) return;
-        e.preventDefault();
-        e.stopPropagation();
-        floatRef.current?.setPointerCapture?.(e.pointerId);
-        const now = performance.now();
-        dragRef.current = {
-            pointerId: e.pointerId,
-            active: true,
-            startX: e.clientX, startY: e.clientY,
-            origX: pos.x, origY: pos.y,
-            lastX: e.clientX,
-            lastTime: now,
-            lastLeftSpeed: 0,
-            lastLeftSpeedTime: 0,
-            moved: false,
-            startedOnInfo: Boolean(target.closest(".music-float-info")),
-        };
-    }, [pos]);
-
-    const handlePointerMove = useCallback((e: React.PointerEvent) => {
-        const d = dragRef.current;
-        if (!d.active || d.pointerId !== e.pointerId) return;
-        const dx = e.clientX - d.startX;
-        const dy = e.clientY - d.startY;
-        if (Math.abs(dx) > DRAG_START_THRESHOLD || Math.abs(dy) > DRAG_START_THRESHOLD) d.moved = true;
-        if (d.moved) {
-            const nextPos = clampPos(d.origX + dx, d.origY + dy);
-            const now = performance.now();
-            const dt = Math.max(1, now - d.lastTime);
-            const stepDx = e.clientX - d.lastX;
-            const leftSpeed = stepDx < 0 ? Math.abs(stepDx) / dt : 0;
-            if (leftSpeed > 0) {
-                d.lastLeftSpeed = leftSpeed;
-                d.lastLeftSpeedTime = now;
-            }
-            d.lastX = e.clientX;
-            d.lastTime = now;
-            setPos(nextPos);
-        }
-    }, [clampPos]);
-
-    const finishPointer = useCallback((e: React.PointerEvent) => {
-        const d = dragRef.current;
-        if (!d.active || d.pointerId !== e.pointerId) return;
-        if (floatRef.current?.hasPointerCapture?.(e.pointerId)) {
-            floatRef.current.releasePointerCapture(e.pointerId);
-        }
-        d.active = false;
-        d.pointerId = null;
-        const dx = e.clientX - d.startX;
-        const dy = e.clientY - d.startY;
-        const finalPos = clampPos(d.origX + dx, d.origY + dy);
-        const now = performance.now();
-        const dt = Math.max(1, now - d.lastTime);
-        const stepDx = e.clientX - d.lastX;
-        const leftSpeed = stepDx < 0 ? Math.abs(stepDx) / dt : 0;
-        const recentMoveSpeed = now - d.lastLeftSpeedTime <= SWIPE_VELOCITY_RECENT_MS ? d.lastLeftSpeed : 0;
-        const effectiveLeftSpeed = Math.max(leftSpeed, recentMoveSpeed);
-        const inertialX = finalPos.x - effectiveLeftSpeed * SWIPE_INERTIA_MS;
-        const shouldDismiss = d.moved
-            && finalPos.x <= SWIPE_DISMISS_ARMING_X
-            && effectiveLeftSpeed >= SWIPE_DISMISS_SPEED
-            && inertialX <= SWIPE_DISMISS_EDGE_X;
-
-        if (shouldDismiss) {
-            dismissFloat();
-            return;
-        }
-
-        if (d.moved) {
-            setPos(finalPos);
-            return;
-        }
-
-        if (!d.moved && player) {
-            if (d.startedOnInfo) {
-                player.openFullPlayer();
-                return;
-            }
-
-            setExpanded(prev => {
-                requestAnimationFrame(() => setPos(p => clampPos(p.x, p.y)));
-                return !prev;
-            });
-        }
-    }, [player, clampPos, dismissFloat]);
-
-    const handlePointerUp = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
-    const handlePointerCancel = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
-
-    if (!player || !player.currentTrack || hidden || player.floatDismissed || !appearance.enabled) return null;
-
-    const track = player.currentTrack;
-    const floatSize = appearance.size ?? 72;
-    const hideFromFloat = () => {
-        const next = { ...appearance, enabled: false };
-        const result = saveMusicFloatAppearance(next);
-        if (result.ok) setAppearance(next);
-    };
-
-    return (
-        <div
-            ref={floatRef}
-            className="music-float"
-            data-float-color={appearance.color}
-            data-card-style={appearance.cardStyle}
-            data-float-shape={appearance.shape}
-            {...(appearance.image ? { "data-custom-image": "" } : {})}
-            {...(expanded ? { "data-expanded": "" } : {})}
-            {...(dismissing ? { "data-dismissing": "" } : {})}
-            style={{ left: 0, top: 0, translate: `${pos.x}px ${pos.y}px`, "--music-float-size": `${floatSize}px`, "--music-float-accent": MUSIC_FLOAT_COLORS.find(item => item.id === appearance.color)?.value || "#9b8cff" } as React.CSSProperties}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerCancel}
-        >
-            <div className="music-float-inner">
-                {/* Cover art */}
-                <div className="music-float-cover-wrap" {...(player.isPlaying ? { "data-playing": "" } : {})}>
-                    <div className="music-float-vinyl-groove music-float-vinyl-groove-1" />
-                    <div className="music-float-vinyl-groove music-float-vinyl-groove-2" />
-                    <div className="music-float-vinyl-center">
-                        {appearance.image ? (
-                            <img src={appearance.image} alt="" className="music-float-cover-img" draggable={false} />
-                        ) : track.coverUrl ? (
-                            <img src={track.coverUrl} alt="" className="music-float-cover-img" draggable={false} />
-                        ) : (
-                            <div className="music-float-cover-placeholder">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                    <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-                                </svg>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Track Info */}
-                <div className="music-float-info">
-                    <div className="music-float-title">{track.title}</div>
-                    <div className="music-float-artist">{track.artist}</div>
-                </div>
-
-                {/* Compact Controls */}
-                <div className="music-float-controls">
-                    <button className="music-float-btn" onClick={(e) => { e.stopPropagation(); player.prev(); }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
-                        </svg>
-                    </button>
-                    <button className="music-float-btn music-float-btn-play" onClick={(e) => { e.stopPropagation(); player.togglePlay(); }}>
-                        {player.isPlaying ? (
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M6 4h4v16H6zm8 0h4v16h-4z" />
-                            </svg>
-                        ) : (
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M8 5v14l11-7z" />
-                            </svg>
-                        )}
-                    </button>
-                    <button className="music-float-btn" onClick={(e) => { e.stopPropagation(); player.next(); }} aria-label="下一首">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M6 18l8.5-6L6 6v12zm8.5 0h2V6h-2v12z" />
-                        </svg>
-                    </button>
-                    <button className="music-float-btn music-float-hide-btn" onClick={(e) => { e.stopPropagation(); hideFromFloat(); }} aria-label="隐藏悬浮球" title="隐藏悬浮球">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
-                    </button>
-                </div>
-            </div>
-            {expanded && (
-                <div className="music-float-progress" onPointerDown={event => event.stopPropagation()}>
-                    <input
-                        type="range"
-                        min={0}
-                        max={Math.max(1, player.duration || 1)}
-                        step={0.1}
-                        value={Math.min(player.currentTime, Math.max(1, player.duration || 1))}
-                        onChange={event => player.seek(Number(event.target.value))}
-                        aria-label="歌曲播放进度"
-                    />
-                </div>
-            )}
-        </div>
-    );
+  const player = useMusicPlayerOptional();
+  const root = useRef<HTMLDivElement>(null);
+  const [mode,setMode] = useState<MusicFloatMode>(() => loadMusicFloatMode());
+  const [expanded,setExpanded] = useState(false);
+  const [pos,setPos] = useState({x:12,y:280});
+  const [lyricsOpen,setLyricsOpen] = useState(false);
+  const drag = useRef<{id:number;x:number;y:number;ox:number;oy:number;moved:boolean}|null>(null);
+  useEffect(()=>{const refresh=()=>setMode(loadMusicFloatMode());window.addEventListener(MUSIC_FLOAT_MODE_EVENT,refresh);return()=>window.removeEventListener(MUSIC_FLOAT_MODE_EVENT,refresh);},[]);
+  const clamp = useCallback((x:number,y:number)=>{const el=root.current;const host=el?.closest("[data-ui='phone-screen']") as HTMLElement|null;if(!host||!el)return{x,y};return{x:Math.max(4,Math.min(x,host.clientWidth-el.offsetWidth-4)),y:Math.max(8,Math.min(y,host.clientHeight-el.offsetHeight-8))};},[]);
+  const down=(e:React.PointerEvent)=>{if((e.target as HTMLElement).closest("button,input"))return;drag.current={id:e.pointerId,x:e.clientX,y:e.clientY,ox:pos.x,oy:pos.y,moved:false};(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);};
+  const move=(e:React.PointerEvent)=>{const d=drag.current;if(!d||d.id!==e.pointerId)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;if(Math.abs(dx)+Math.abs(dy)>6)d.moved=true;if(d.moved)setPos(clamp(d.ox+dx,d.oy+dy));};
+  const up=(e:React.PointerEvent)=>{const d=drag.current;if(!d||d.id!==e.pointerId)return;drag.current=null;if(d.moved){const p=clamp(d.ox+e.clientX-d.x,d.oy+e.clientY-d.y);const host=root.current?.closest("[data-ui='phone-screen']") as HTMLElement|null;setPos({...p,x:host&&p.x+24>host.clientWidth/2?Math.max(4,host.clientWidth-56):4});}else setExpanded(v=>!v);};
+  if(!player?.currentTrack||hidden||player.floatDismissed)return null;
+  const t=player.currentTrack;
+  const close=()=>{player.stop();player.dismissFloat();setExpanded(false);};
+  return <div ref={root} className={`music-float-v2 music-float-v2-${mode}`} style={mode==="orb"?{left:pos.x,top:pos.y}:undefined} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={()=>{drag.current=null;}}>
+    {mode==="orb" ? <>
+      <button className="mf-orb" aria-label="展开音乐悬浮球" onClick={()=>setExpanded(v=>!v)}>{t.coverUrl?<img src={t.coverUrl} alt=""/>:<span>♫</span>}<i data-playing={player.isPlaying}/></button>
+      {expanded&&<section className="mf-orb-card" onPointerDown={e=>e.stopPropagation()}>
+        <div className="mf-track"><strong>{t.title}</strong><small>{t.artist}</small></div>
+        <input aria-label="播放进度" type="range" min="0" max={Math.max(1,player.duration)} value={Math.min(player.currentTime,Math.max(1,player.duration))} onChange={e=>player.seek(Number(e.target.value))}/>
+        <div className="mf-controls"><button onClick={()=>player.prev()}>上一首</button><button onClick={()=>player.togglePlay()}>{player.isPlaying?"暂停":"播放"}</button><button onClick={()=>player.next()}>下一首</button><button onClick={()=>player.openFullPlayer()}>播放器</button><button onClick={close}>关闭</button></div>
+      </section>}
+    </> : <>
+      {!expanded?<button className="mf-island" onClick={()=>setExpanded(true)}><span className="mf-cover">{t.coverUrl?<img src={t.coverUrl} alt=""/>:"♫"}</span><span className="mf-wave" data-playing={player.isPlaying}><i/><i/><i/><i/></span></button>:
+      <><button className="mf-backdrop" aria-label="收起灵动岛" onClick={()=>setExpanded(false)}/><section className="mf-island-card">
+        <header><span>正在播放</span><button onClick={()=>setExpanded(false)}>收起</button></header>
+        <div className="mf-island-track">{t.coverUrl?<img src={t.coverUrl} alt=""/>:<span>♫</span>}<div><strong>{t.title}</strong><small>{t.artist}</small></div></div>
+        <input aria-label="播放进度" type="range" min="0" max={Math.max(1,player.duration)} value={Math.min(player.currentTime,Math.max(1,player.duration))} onChange={e=>player.seek(Number(e.target.value))}/>
+        <nav><button onClick={()=>setLyricsOpen(v=>!v)}>词</button><button onClick={()=>player.prev()}>上一首</button><button onClick={()=>player.togglePlay()}>{player.isPlaying?"暂停":"播放"}</button><button onClick={()=>player.next()}>下一首</button><button onClick={close}>关闭</button></nav>
+      </section></>}
+    </>}
+    <MusicDesktopLyrics open={lyricsOpen} onClose={()=>setLyricsOpen(false)}/>
+  </div>;
 }

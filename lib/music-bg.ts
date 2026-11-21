@@ -195,3 +195,17 @@ export function saveMusicFloatAppearance(value: MusicFloatAppearance): { ok: boo
         return { ok: false, message: "保存失败，图片可能过大" };
     }
 }
+
+
+// Floating music presentation mode (orb / Dynamic Island).
+export type MusicFloatMode = "orb" | "island";
+const MUSIC_FLOAT_MODE_KEY = "music-float-mode-v1";
+export const MUSIC_FLOAT_MODE_EVENT = "music-float-mode-change";
+registerKvMigration(MUSIC_FLOAT_MODE_KEY);
+export function loadMusicFloatMode(): MusicFloatMode {
+  try { return kvGet(MUSIC_FLOAT_MODE_KEY) === "island" ? "island" : "orb"; } catch { return "orb"; }
+}
+export function saveMusicFloatMode(mode: MusicFloatMode): void {
+  kvSet(MUSIC_FLOAT_MODE_KEY, mode);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(MUSIC_FLOAT_MODE_EVENT));
+}
