@@ -1082,6 +1082,7 @@ export function recordMusicRecentTrack(track: MusicTrack): void {
         };
         const next = [{ song, playedAt: new Date().toISOString() }, ...previous.filter(item => item?.song?.id !== id)].slice(0, 100);
         kvSet(LOCAL_RECENT_MUSIC_KEY, JSON.stringify(next));
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("music-recent-updated"));
     } catch { /* recent history is best-effort; never interrupt playback */ }
 }
 
