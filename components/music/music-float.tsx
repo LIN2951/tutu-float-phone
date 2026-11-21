@@ -39,6 +39,7 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
     const rootRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<DragState | null>(null);
     const suppressOrbClickRef = useRef(false);
+    const suppressOrbClickRef = useRef(false);
     const tuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const retractTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [mode, setMode] = useState<MusicFloatMode>(() => loadMusicFloatMode());
@@ -63,8 +64,6 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
         const host = el?.closest("[data-ui='phone-screen']") as HTMLElement | null;
         if (!el || !host) return { x, y };
         const rect = host.getBoundingClientRect();
-        const sx = rect.width / Math.max(1, host.clientWidth);
-        const sy = rect.height / Math.max(1, host.clientHeight);
         const w = el.offsetWidth, h = el.offsetHeight;
         return {
             x: Math.max(0, Math.min(x, host.clientWidth - w)),
@@ -132,11 +131,9 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
 
     const beginDrag = (e: React.PointerEvent<HTMLElement>) => {
         const target = e.target as HTMLElement;
-        if (target.closest("button,input")) return;
-        if (mode !== "orb") return;
+        if ((target.closest("button,input") && !target.closest(".mf-orb")) || mode !== "orb") return;
         const wasTucked = tucked;
         setTucked(false);
-        setExpanded(false);
         clearTuckTimer();
         dragRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, originX: pos.x, originY: pos.y, moved: false, wasTucked };
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -157,6 +154,9 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
         if (!d || d.pointerId !== e.pointerId) return;
         dragRef.current = null;
         if (d.moved) {
+            suppressOrbClickRef.current = true;
+            requestAnimationFrame(() => { suppressOrbClickRef.current = false; });
+            setExpanded(false);
             const host = rootRef.current?.closest("[data-ui='phone-screen']") as HTMLElement | null;
             const rect = host?.getBoundingClientRect();
             const sx = host && rect ? rect.width / Math.max(1, host.clientWidth) : 1;
@@ -168,6 +168,8 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
             setPos({ ...p, x: nextSide === "left" ? EDGE_GAP : Math.max(EDGE_GAP, width - 46 - EDGE_GAP) });
             scheduleTuck();
         } else if (d.wasTucked) {
+            suppressOrbClickRef.current = true;
+            requestAnimationFrame(() => { suppressOrbClickRef.current = false; });
             setTucked(false);
             scheduleTuck();
         } else {
@@ -240,8 +242,8 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
             </button>
             {expanded && (
                 <>
-                    <section className="mf-orb-card" onClick={() => player.openFullPlayer()}>
-                        <div className="mf-orb-track">{track.coverUrl ? <img src={track.coverUrl} alt="" /> : <span>♫</span>}<div><strong>{track.title}</strong><small>{track.artist}</small></div></div>
+                    <section className="mf-orb-card">
+                        <div className="mf-orb-track"><button className="mf-orb-cover" aria-label="打开完整播放器" onClick={() => player.openFullPlayer()}>{track.coverUrl ? <img src={track.coverUrl} alt="" /> : <span>♫</span>}</button><div><strong>{track.title}</strong><small>{track.artist}</small></div><span className="mf-card-wave" data-playing={player.isPlaying ? "" : undefined}><i /><i /><i /><i /></span></div>
                         <input aria-label="歌曲播放进度" type="range" min={0} max={Math.max(1, player.duration || 1)} step={0.1} value={Math.min(player.currentTime, Math.max(1, player.duration || 1))} onClick={e => e.stopPropagation()} onChange={e => player.seek(Number(e.target.value))} />
                         <nav>
                             <button onClick={e => { e.stopPropagation(); player.prev(); }}>上一首</button>
