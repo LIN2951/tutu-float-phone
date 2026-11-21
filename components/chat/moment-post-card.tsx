@@ -75,29 +75,9 @@ export function MomentPostCard({ post, onUpdate, onRequestDelete, onOpenCommentC
     const userPhotos = post.authorType === "user" ? getPostPhotos(post) : [];
 
     // Resolve asset:// photo URLs from IndexedDB
-    const [resolvedPhotoUrl, setResolvedPhotoUrl] = useState<string | null>(null);
-    useEffect(() => {
-        let cancelled = false;
-
-        if (!post.photoUrl) {
-            setResolvedPhotoUrl(null);
-            return;
-        }
-
-        if (post.photoUrl.startsWith("asset://")) {
-            const assetId = post.photoUrl.slice(8);
-            getChatImageFromIndexedDB(assetId).then(url => {
-                if (cancelled) return;
-                setResolvedPhotoUrl(url || null);
-            });
-        } else {
-            setResolvedPhotoUrl(post.photoUrl);
-        }
-
-        return () => {
-            cancelled = true;
-        };
-    }, [post.photoUrl]);
+    const resolvedPhotoFromCache = useMomentsPhotoUrl(post.photoUrl);
+    const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
+    const resolvedPhotoUrl = failedPhotoUrl === post.photoUrl ? null : resolvedPhotoFromCache;
 
     // 如果落库状态为 pending 但实际并没有任何异步任务在跑（比如被刷新/大退杀掉了），
     // 且帖子本身已有正常 photoUrl，将残留的 pending 复位，防止变成僵尸任务。
@@ -420,7 +400,7 @@ export function MomentPostCard({ post, onUpdate, onRequestDelete, onOpenCommentC
                         title=""
                         filename={`moment-${post.id}.png`}
                         onError={() => {
-                            setResolvedPhotoUrl(null);
+                            setFailedPhotoUrl(post.photoUrl || null);
                         }}
                         onRegenerate={canRegeneratePhoto ? openPhotoPromptEditor : undefined}
                         regenerating={photoRegenerating}
