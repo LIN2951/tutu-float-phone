@@ -164,7 +164,7 @@ export const MUSIC_FLOAT_SHAPES = [
 ] as const;
 
 export const DEFAULT_MUSIC_FLOAT_APPEARANCE: MusicFloatAppearance = {
-    enabled: true, mode: "orb", color: "violet", cardStyle: "glass", shape: "circle", image: "", size: 72,
+    enabled: true, mode: "orb", color: "violet", cardStyle: "glass", shape: "circle", image: "", size: 46,
 };
 
 export function loadMusicFloatAppearance(): MusicFloatAppearance {
@@ -180,7 +180,7 @@ export function loadMusicFloatAppearance(): MusicFloatAppearance {
             cardStyle: MUSIC_FLOAT_CARD_STYLES.some(item => item.id === value.cardStyle) ? value.cardStyle! : "glass",
             shape: MUSIC_FLOAT_SHAPES.some(item => item.id === value.shape) ? value.shape! : "circle",
             image: typeof value.image === "string" ? value.image : "",
-            size: Number.isFinite(value.size) ? Math.max(48, Math.min(112, Number(value.size))) : 72,
+            size: Number.isFinite(value.size) ? Math.max(46, Math.min(112, Number(value.size))) : 46,
         };
     } catch { return DEFAULT_MUSIC_FLOAT_APPEARANCE; }
 }
