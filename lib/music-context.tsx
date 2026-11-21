@@ -4,7 +4,7 @@
 import { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import type { MusicTrack } from "./music-storage";
 import { getAudioBlob, markTrackPlayed, updateTrackMeta } from "./music-storage";
-import { findPlayableMatch, getNeteaseLyrics, getNeteasePlayUrl, getNeteasePlayInfo, getNeteaseSongDetail, recordMusicRecentTrack } from "./music-service";
+import { findPlayableMatch, getNeteaseLyrics, getNeteasePlayUrl, getNeteasePlayInfo, getNeteaseSongDetail } from "./music-service";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 import { registerMusicControlBridge } from "./music-control-bridge";
 import { consumeListenTrackActor, recordListenTrack } from "./together-listening";
@@ -100,11 +100,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const trackLoadTokenRef = useRef(0);
 
     const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null);
-    useEffect(() => {
-        if (!currentTrack) return;
-        recordListenTrack(currentTrack, consumeListenTrackActor());
-        recordMusicRecentTrack(currentTrack);
-    }, [currentTrack?.id]);
+    useEffect(() => { if (currentTrack) recordListenTrack(currentTrack, consumeListenTrackActor()); }, [currentTrack?.id]);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -327,11 +323,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const setTrackLiked = useCallback((trackId: string, liked: boolean) => {
         setCurrentTrack(prev => prev?.id === trackId ? { ...prev, liked } : prev);
         setQueueRaw(prev => prev.map(item => item.id === trackId ? { ...item, liked } : item));
-        if (!trackId.startsWith("netease_")) {
-            void updateTrackMeta(trackId, { liked }).then(() => {
-                window.dispatchEvent(new CustomEvent("music-library-updated"));
-            }).catch(() => undefined);
-        }
+        if (!trackId.startsWith("netease_")) void updateTrackMeta(trackId, { liked });
     }, []);
 
     const stop = useCallback(() => {
