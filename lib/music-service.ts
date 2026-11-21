@@ -700,6 +700,58 @@ export async function getUserRecordWithCounts(type: 0 | 1 = 1): Promise<NeteaseP
     } catch { return []; }
 }
 
+// ── Real Netease account likes ──
+const cloudLikeCache = new Map<number, { liked: boolean; checkedAt: number }>();
+let cloudLikeListPromise: Promise<Set<number>> | null = null;
+let cloudLikeListAt = 0;
+
+async function getCloudLikeIds(force = false): Promise<Set<number>> {
+    if (!force && cloudLikeListPromise && Date.now() - cloudLikeListAt < 30_000) return cloudLikeListPromise;
+    cloudLikeListAt = Date.now();
+    cloudLikeListPromise = (async () => {
+        const base = neteaseBase();
+        const uid = await getLoginUid();
+        if (!base || !uid || !loadNeteaseCookie()) return new Set<number>();
+        const resp = await fetch(withNeteaseParams(`${base}/likelist?uid=${uid}&timestamp=${Date.now()}`), { cache: "no-store" });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const ids = Array.isArray(data?.ids) ? data.ids : [];
+        return new Set<number>(ids.map((id: unknown) => Number(id)).filter((id: number) => Number.isFinite(id) && id > 0));
+    })().catch(error => {
+        cloudLikeListPromise = null;
+        throw error;
+    });
+    return cloudLikeListPromise;
+}
+
+export async function getCloudSongLiked(songId: number): Promise<boolean> {
+    const cached = cloudLikeCache.get(songId);
+    if (cached && Date.now() - cached.checkedAt < 30_000) return cached.liked;
+    const ids = await getCloudLikeIds();
+    const liked = ids.has(songId);
+    cloudLikeCache.set(songId, { liked, checkedAt: Date.now() });
+    return liked;
+}
+
+export async function setCloudSongLiked(songId: number, liked: boolean): Promise<{ ok: boolean; message: string }> {
+    const base = neteaseBase();
+    if (!base || !loadNeteaseCookie()) return { ok: false, message: "请先登录网易云账号" };
+    try {
+        const resp = await fetch(withNeteaseParams(`${base}/like?id=${songId}&like=${liked}&timestamp=${Date.now()}`), { cache: "no-store" });
+        const data = await resp.json();
+        if (data?.code !== 200 && data?.playlist?.code !== 200) {
+            return { ok: false, message: data?.message || "网易云收藏失败" };
+        }
+        cloudLikeCache.set(songId, { liked, checkedAt: Date.now() });
+        cloudLikeListPromise = null;
+        cloudLikeListAt = 0;
+        window.dispatchEvent(new CustomEvent("music-cloud-likes-updated", { detail: { songId, liked } }));
+        return { ok: true, message: liked ? "已收藏到网易云喜欢的音乐" : "已取消网易云喜欢" };
+    } catch (error) {
+        return { ok: false, message: error instanceof Error ? error.message : "网易云收藏失败" };
+    }
+}
+
 // ── Track-to-Playlist mapping (localStorage) ──
 
 const TRACK_PLAYLIST_MAP_KEY = "ai_phone_track_playlist_map_v1";
