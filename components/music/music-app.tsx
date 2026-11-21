@@ -1881,7 +1881,7 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
                     <input
                         className="music-settings-input"
                         type="range"
-                        min={48}
+                        min={46}
                         max={112}
                         step={4}
                         value={floatAppearance.size ?? 72}
