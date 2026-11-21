@@ -77,7 +77,7 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
     const [editProfile, setEditProfile] = useState(false);
     const [draftName, setDraftName] = useState(screenName);
     const [draftSignature, setDraftSignature] = useState(signature);
-    const [featured, setFeatured] = useState<MomentsPhoto[]>([]);
+    const [featured, setFeatured] = useState<MomentsPhoto[]>(() => getFeaturedPhotos());
     const [showGallery, setShowGallery] = useState(false);
     const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
     const [photoToRemove, setPhotoToRemove] = useState<MomentsPhoto | null>(null);
@@ -257,17 +257,31 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
     useEffect(() => {
         if (firstPaintMediaReady) return;
         let cancelled = false;
-        const urls: Array<string | undefined | null> = [
-            coverUrl,
-            selectedTrack?.coverUrl,
-            ...featured.map(photo => photo.url),
-            ...visiblePosts.flatMap(post => [
-                post.photoUrl,
-                ...getPostPhotos(post),
-                post.media?.cover,
-            ]),
-        ];
-        void preloadMomentsPhotos(urls).finally(() => {
+        void (async () => {
+            // Fetch the saved cover before the first reveal as well; it is an
+            // IndexedDB asset just like post photos.
+            let initialCover = coverUrl;
+            if (!initialCover) {
+                const savedCoverId = kvGet(COVER_ASSET_KEY);
+                if (savedCoverId) {
+                    initialCover = await getChatImageFromIndexedDB(savedCoverId).catch(() => null);
+                    if (initialCover && !cancelled) setCoverUrl(initialCover);
+                }
+            }
+            const urls: Array<string | undefined | null> = [
+                initialCover,
+                selectedTrack?.coverUrl,
+                ...featured.map(photo => photo.url),
+                ...visiblePosts.flatMap(post => [
+                    post.photoUrl,
+                    ...getPostPhotos(post),
+                    post.media?.cover,
+                ]),
+            ];
+            await preloadMomentsPhotos(urls);
+            if (!cancelled) setFirstPaintMediaReady(true);
+        })().catch(error => {
+            console.warn("[Moments] first-paint image preload failed:", error);
             if (!cancelled) setFirstPaintMediaReady(true);
         });
         return () => { cancelled = true; };
