@@ -323,7 +323,11 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const setTrackLiked = useCallback((trackId: string, liked: boolean) => {
         setCurrentTrack(prev => prev?.id === trackId ? { ...prev, liked } : prev);
         setQueueRaw(prev => prev.map(item => item.id === trackId ? { ...item, liked } : item));
-        if (!trackId.startsWith("netease_")) void updateTrackMeta(trackId, { liked });
+        if (!trackId.startsWith("netease_")) {
+            void updateTrackMeta(trackId, { liked }).then(() => {
+                window.dispatchEvent(new CustomEvent("music-library-updated"));
+            }).catch(() => undefined);
+        }
     }, []);
 
     const stop = useCallback(() => {
