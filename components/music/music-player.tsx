@@ -11,7 +11,6 @@ import { extractCoverPalette, DEFAULT_COVER_PALETTE, type CoverPalette } from "@
 import {
     getUserPlaylists, addTracksToPlaylist, removeTracksFromPlaylist, getNeteasePlayInfo,
     isNeteaseConfigured, recordTrackPlaylist, removeTrackPlaylistRecord, getTrackPlaylistId,
-    getCloudSongLiked, setCloudSongLiked,
     getSongCommentPage, getNeteaseSongDetail,
     type NeteasePlaylist,
 } from "@/lib/music-service";
@@ -300,20 +299,10 @@ export default function MusicPlayer() {
     const [loadingPlaylists, setLoadingPlaylists] = useState(false);
     const [addResult, setAddResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-    // Sync the heart with the real Netease account, not a local playlist map.
+    // Sync liked state with current track
     useEffect(() => {
-        let cancelled = false;
-        const track = player.currentTrack;
-        if (!track) { setLiked(false); return; }
-        if (!isNeteaseTrack) { setLiked(Boolean(track.liked)); return; }
-        setLiked(false);
-        void getCloudSongLiked(neteaseId).then(value => {
-            if (!cancelled) setLiked(value);
-        }).catch(() => {
-            if (!cancelled) setLiked(false);
-        });
-        return () => { cancelled = true; };
-    }, [player.currentTrack?.id, player.currentTrack?.liked, isNeteaseTrack, neteaseId]);
+        setLiked(isNeteaseTrack ? Boolean(getTrackPlaylistId(neteaseId)) : Boolean(player.currentTrack?.liked));
+    }, [player.currentTrack?.id, player.currentTrack?.liked]);
 
     // Clear add result after 2s
     useEffect(() => {
@@ -322,22 +311,34 @@ export default function MusicPlayer() {
         return () => clearTimeout(t);
     }, [addResult]);
 
-    const [likeBusy, setLikeBusy] = useState(false);
-
     const handleLike = useCallback(async () => {
-        const track = player.currentTrack;
-        if (!track || likeBusy) return;
-        const nextLiked = !liked;
-        if (isNeteaseTrack && neteaseId) {
-            setLikeBusy(true);
-            const result = await setCloudSongLiked(neteaseId, nextLiked);
-            setLikeBusy(false);
-            setAddResult(result);
-            if (!result.ok) return;
+        if (!player.currentTrack) return;
+        const newLiked = !liked;
+        if (newLiked) {
+            // For Netease tracks, open playlist picker to add to a playlist
+            if (isNeteaseTrack && isNeteaseConfigured()) {
+                setShowPlaylistPicker(true);
+                setLoadingPlaylists(true);
+                getUserPlaylists().then(p => { setPlaylists(p); setLoadingPlaylists(false); });
+            } else {
+                setLiked(true);
+                player.setTrackLiked(player.currentTrack.id, true);
+            }
+        } else {
+            // Unlike — remove from Netease playlist if previously added
+            if (isNeteaseTrack && neteaseId) {
+                const pid = getTrackPlaylistId(neteaseId);
+                if (pid) {
+                    const result = await removeTracksFromPlaylist(pid, [neteaseId]);
+                    if (!result.ok) { setAddResult(result); return; }
+                    removeTrackPlaylistRecord(neteaseId);
+                    setAddResult(result);
+                }
+            }
+            setLiked(false);
+            player.setTrackLiked(player.currentTrack.id, false);
         }
-        setLiked(nextLiked);
-        player.setTrackLiked(track.id, nextLiked);
-    }, [liked, likeBusy, player.currentTrack, player.setTrackLiked, isNeteaseTrack, neteaseId]);
+    }, [liked, player.currentTrack, isNeteaseTrack, neteaseId]);
 
     const handleAddToPlaylist = useCallback(async (playlist: NeteasePlaylist) => {
         if (!neteaseId) return;
@@ -646,7 +647,7 @@ export default function MusicPlayer() {
 
             {/* Social row: like / comments / share */}
             <div className="mp-social">
-                <button className="mp-social-btn" disabled={likeBusy} {...(liked ? { "data-liked": "" } : {})} onClick={handleLike}>
+                <button className="mp-social-btn" {...(liked ? { "data-liked": "" } : {})} onClick={handleLike}>
                     {liked ? (
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
