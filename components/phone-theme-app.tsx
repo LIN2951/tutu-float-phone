@@ -304,10 +304,10 @@ export function PhoneThemeApp({
         iconLayout: pageIcons,
         widgets
       });
-      const defaultName = result.fileName.replace(/\\.zip$/i, "");
+      const defaultName = result.fileName.replace(/\.zip$/i, "");
       const chosenName = window.prompt("请输入导出的主题包名称（留空使用默认名称）", defaultName);
       if (chosenName === null) throw new Error("已取消主题导出。");
-      const safeName = (chosenName.trim() || defaultName).replace(/[\\\\/:*?"<>|]+/g, "-").slice(0, 80);
+      const safeName = (chosenName.trim() || defaultName).replace(/[\\/:*?"<>|]+/g, "-").slice(0, 80);
       const { downloadFile } = await import("@/lib/download-utils");
       await downloadFile(result.blob, safeName + ".zip");
       setShowThemeTransfer(false);
