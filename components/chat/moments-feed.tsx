@@ -14,9 +14,9 @@ import { MomentsCompose } from "./moments-compose";
 import { ConfirmDialog } from "@/components/ui/modal";
 import { PageShell } from "@/components/ui/page-shell";
 import { AlertCircle, Camera, Music2, Pause, ChevronRight, SquarePen, Images } from "lucide-react";
-import { getMomentsScreenName, getMomentsSignature, saveMomentsProfile, getFeaturedPhotos, getMyMomentsPhotos, addFeaturedPhoto, removeFeaturedPhoto, addManualPhoto, removeAlbumPhoto, getMomentsMusicId, setMomentsMusicId, type MomentsPhoto } from "@/lib/moments-profile";
+import { getMomentsScreenName, getMomentsSignature, saveMomentsProfile, getFeaturedPhotos, getMyMomentsPhotos, addFeaturedPhoto, removeFeaturedPhoto, addManualPhoto, removeAlbumPhoto, getMomentsMusicId, setMomentsMusicId, getPostPhotos, type MomentsPhoto } from "@/lib/moments-profile";
 import { saveMomentsImage } from "@/lib/moments-image-upload";
-import { MomentsPhotoImage, useMomentsPhotoUrl } from "./moments-photo";
+import { MomentsPhotoImage, useMomentsPhotoUrl, preloadMomentsPhotos } from "./moments-photo";
 import { loadAllTracks, type MusicTrack } from "@/lib/music-storage";
 import { useMusicControlsOptional } from "@/lib/music-context";
 import { kvGet, kvSet, registerKvMigration } from "@/lib/kv-db";
@@ -249,6 +249,29 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
 
     const visiblePosts = posts.slice(0, visiblePostCount);
     const hasMorePosts = visiblePostCount < posts.length;
+    const [firstPaintMediaReady, setFirstPaintMediaReady] = useState(false);
+
+    // Resolve and decode every image in the first feed batch before revealing
+    // the page. The page then appears as one complete frame, not a sequence of
+    // per-card IndexedDB lookups and image decode paints.
+    useEffect(() => {
+        if (firstPaintMediaReady) return;
+        let cancelled = false;
+        const urls: Array<string | undefined | null> = [
+            coverUrl,
+            selectedTrack?.coverUrl,
+            ...featured.map(photo => photo.url),
+            ...visiblePosts.flatMap(post => [
+                post.photoUrl,
+                ...getPostPhotos(post),
+                post.media?.cover,
+            ]),
+        ];
+        void preloadMomentsPhotos(urls).finally(() => {
+            if (!cancelled) setFirstPaintMediaReady(true);
+        });
+        return () => { cancelled = true; };
+    }, [firstPaintMediaReady, coverUrl, selectedTrack?.coverUrl, featured, visiblePosts]);
 
     const handleLoadMorePosts = useCallback(() => {
         if (!hasMorePosts) return;
@@ -441,7 +464,7 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
                 <button type="button" className="moments-header-edit" onClick={() => { setDraftName(screenName); setDraftSignature(signature); setEditProfile(true); }} aria-label="编辑朋友圈资料">编辑</button>
                 <button type="button" className="moments-header-compose" onClick={openMyLife} aria-label="New Post，发朋友圈" title="New Post，发朋友圈"><Camera size={18} strokeWidth={1.8}/></button>
             </div>}
-            className={`moments-feed-page ${activeComposer ? "has-comment-modal" : ""}`}
+            className={`moments-feed-page ${activeComposer ? "has-comment-modal" : ""} ${firstPaintMediaReady ? "moments-media-ready" : "moments-media-preloading"}`}
             bodyRef={scrollRef}
             footer={showCompose ? (
                 <MomentsCompose
