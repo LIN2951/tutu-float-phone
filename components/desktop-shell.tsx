@@ -1118,7 +1118,19 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
   const [glassPaintPass, setGlassPaintPass] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const reverseVisitState=useReverseVisit();
-  const [activeApp, setActiveApp] = useState<DesktopIconId | null>(null);
+  const [activeApp, setActiveApp] = useState<DesktopIconId | null>(() => {
+    try {
+      const saved = sessionStorage.getItem("float-last-active-app");
+      return saved ? saved as DesktopIconId : null;
+    } catch { return null; }
+  });
+  // Keep the last foreground page across Android WebView process recreation.
+  useEffect(() => {
+    try {
+      if (activeApp) sessionStorage.setItem("float-last-active-app", String(activeApp));
+      else sessionStorage.removeItem("float-last-active-app");
+    } catch { /* storage can be unavailable in private WebView contexts */ }
+  }, [activeApp]);
   useEffect(()=>{let cancelled=false,navRevision=0;const timers:ReturnType<typeof setTimeout>[]=[];const fn=(event:Event)=>{const d=(event as CustomEvent).detail||{};if(d.scroll){const root=document.querySelector('[data-active-app]');const targets=Array.from(root?.querySelectorAll<HTMLElement>('*')||[]).filter(e=>e.getClientRects().length&&e.scrollHeight>e.clientHeight+30&&['auto','scroll'].includes(getComputedStyle(e).overflowY));const target=targets.sort((a,b)=>b.clientHeight-a.clientHeight)[0];target?.scrollBy({top:d.scroll*target.clientHeight*.65,behavior:'smooth'});return;}
     if(!d.app)return;const revision=++navRevision;const app=d.app as DesktopIconId;const keys=Object.keys(layoutRef.current);let folderId:string|undefined;let pageIndex=keys.findIndex(key=>(layoutRef.current[key as keyof DesktopLayout]||[]).some(tile=>tile.id===app));
     if(pageIndex<0){folderId=Object.keys(foldersRef.current).find(id=>foldersRef.current[id].icons.includes(app));if(folderId)pageIndex=keys.findIndex(key=>(layoutRef.current[key as keyof DesktopLayout]||[]).some(tile=>tile.id===folderId));}
@@ -2579,7 +2591,10 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
   handleInstallCustomAppToDesktopRef.current = handleInstallCustomAppToDesktop;
 
   // Allow other components to switch apps via custom event
-  const [chatInitSessionId, setChatInitSessionId] = useState<string | null>(null);
+  const [chatInitSessionId, setChatInitSessionId] = useState<string | null>(() => {
+    try { return sessionStorage.getItem("float-last-chat-session"); }
+    catch { return null; }
+  });
   const [activeChatSession, setActiveChatSession] = useState<ChatSession | null>(null);
   const [customAppLaunchContext, setCustomAppLaunchContext] = useState<CustomAppLaunchState | null>(null);
   if (activeApp === toCustomAppIconId("theqoo.float.forum") && !marketTheqooMounted) {
@@ -4993,7 +5008,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                     )}
                   </>
                 )}
-                {(chatVisited||activeApp==="chat")&&<section className="phone-app-pane" style={activeApp!=="chat"?{display:"none"}:undefined}><PhoneChatApp onClose={()=>{setActiveApp(null);setActiveChatSession(null);setChatInitSessionId(null);}} initialSessionId={chatInitSessionId} onSessionChange={setActiveChatSession}/></section>}
+                {(chatVisited||activeApp==="chat")&&<section className="phone-app-pane" style={activeApp!=="chat"?{display:"none"}:undefined}><PhoneChatApp onClose={()=>{setActiveApp(null);setActiveChatSession(null);setChatInitSessionId(null);try{sessionStorage.removeItem("float-last-chat-session");}catch{}}} initialSessionId={chatInitSessionId} onSessionChange={(session)=>{setActiveChatSession(session);try{if(session)sessionStorage.setItem("float-last-chat-session",session.id);}catch{}}}/></section>}
                 {(wvsVisited||activeApp==="weverse")&&<section className="phone-app-pane" style={activeApp!=="weverse"?{display:"none"}:undefined}><WeverseApp visible={activeApp==="weverse"} onClose={()=>setActiveApp(null)} onNotice={setNotice}/></section>}
                 {xiaohongshuMounted && (
                   <section className="phone-app-pane" style={activeApp !== "xiaohongshu" ? { display: "none" } : undefined}>
