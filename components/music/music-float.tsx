@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useMusicControlsOptional } from "@/lib/music-context";
+import { useMusicPlayerOptional } from "@/lib/music-context";
 import { loadMusicFloatAppearance, saveMusicFloatAppearance, MUSIC_FLOAT_APPEARANCE_EVENT, MUSIC_FLOAT_COLORS } from "@/lib/music-bg";
 
 const DRAG_START_THRESHOLD = 6;
@@ -13,7 +13,7 @@ const SWIPE_INERTIA_MS = 140;
 const SWIPE_VELOCITY_RECENT_MS = 180;
 
 export default function MusicFloat({ hidden }: { hidden?: boolean }) {
-    const player = useMusicControlsOptional();
+    const player = useMusicPlayerOptional();
     const floatRef = useRef<HTMLDivElement>(null);
     const [pos, setPos] = useState({ x: 310, y: 680 });
     const dragRef = useRef<{
@@ -80,7 +80,7 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
     const handlePointerDown = useCallback((e: React.PointerEvent) => {
         const target = e.target as HTMLElement;
         // Let transport buttons keep their native click behavior.
-        if (target.closest("button")) return;
+        if (target.closest("button, input")) return;
         e.preventDefault();
         e.stopPropagation();
         floatRef.current?.setPointerCapture?.(e.pointerId);
@@ -250,6 +250,19 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
                     </button>
                 </div>
             </div>
+            {expanded && (
+                <div className="music-float-progress" onPointerDown={event => event.stopPropagation()}>
+                    <input
+                        type="range"
+                        min={0}
+                        max={Math.max(1, player.duration || 1)}
+                        step={0.1}
+                        value={Math.min(player.currentTime, Math.max(1, player.duration || 1))}
+                        onChange={event => player.seek(Number(event.target.value))}
+                        aria-label="歌曲播放进度"
+                    />
+                </div>
+            )}
         </div>
     );
 }
