@@ -790,6 +790,17 @@ function MineTab({ player, formatTime, onPlayNetease, onPlayAll, activePlaylist,
         return () => { cancelled = true; };
     }, []);
 
+    useEffect(() => {
+        const refreshRecent = () => {
+            void getRecentSongs().then(songs => {
+                setRecentSongs(songs);
+                writeMusicCache("music-user-recent-songs", songs);
+            });
+        };
+        window.addEventListener("music-recent-updated", refreshRecent);
+        return () => window.removeEventListener("music-recent-updated", refreshRecent);
+    }, []);
+
     if (activePlaylist) {
         return (
             <PlaylistsTab
