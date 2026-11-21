@@ -4,7 +4,7 @@
 import { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import type { MusicTrack } from "./music-storage";
 import { getAudioBlob, markTrackPlayed, updateTrackMeta } from "./music-storage";
-import { findPlayableMatch, getNeteaseLyrics, getNeteasePlayUrl, getNeteasePlayInfo, getNeteaseSongDetail } from "./music-service";
+import { findPlayableMatch, getNeteaseLyrics, getNeteasePlayUrl, getNeteasePlayInfo, getNeteaseSongDetail, recordMusicRecentTrack } from "./music-service";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 import { registerMusicControlBridge } from "./music-control-bridge";
 import { consumeListenTrackActor, recordListenTrack } from "./together-listening";
@@ -100,7 +100,11 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const trackLoadTokenRef = useRef(0);
 
     const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null);
-    useEffect(() => { if (currentTrack) recordListenTrack(currentTrack, consumeListenTrackActor()); }, [currentTrack?.id]);
+    useEffect(() => {
+        if (!currentTrack) return;
+        recordListenTrack(currentTrack, consumeListenTrackActor());
+        recordMusicRecentTrack(currentTrack);
+    }, [currentTrack?.id]);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
