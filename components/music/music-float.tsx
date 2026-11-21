@@ -39,7 +39,6 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
     const rootRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<DragState | null>(null);
     const suppressOrbClickRef = useRef(false);
-    const suppressOrbClickRef = useRef(false);
     const tuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const retractTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [mode, setMode] = useState<MusicFloatMode>(() => loadMusicFloatMode());
