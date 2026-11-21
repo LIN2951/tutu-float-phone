@@ -217,7 +217,9 @@ async function prepareDesktopThemeForFirstPaint(): Promise<PreparedDesktopTheme>
   const profile = readThemeProfile();
   const assetIds = collectFirstPaintThemeAssetIds(profile);
   const assets = assetIds.length ? await getThemeAssetMap(assetIds) : {};
-  await Promise.all(Object.values(assets).map(preloadImageDataUrl));
+  // Do not block app startup on decoding every custom theme image. The data
+  // URLs are passed to the shell before first paint; the browser can decode them
+  // as they are painted instead of serially holding the splash screen open.
   return { profile, assets };
 }
 
@@ -262,15 +264,24 @@ export function MainApp() {
       setKvHydrateFailed(false);
       recommendationCleanup = startContactRecommendationScheduler();
 
-      const nextPreparedLock = await preparePhoneLockForFirstPaint();
-      if (cancelled) return;
-
       let nextPreparedTheme: PreparedDesktopTheme | null = null;
+      let nextPreparedLock: PreparedPhoneLock | null = null;
       try {
-        ensureBuiltinAppleFont();
-        nextPreparedTheme = await prepareDesktopThemeForFirstPaint();
+        // Lock-screen and theme storage are independent IndexedDB reads. Run them
+        // together so startup doesn't pay their latency one after another.
+        const [lockResult, themeResult] = await Promise.all([
+          preparePhoneLockForFirstPaint(),
+          (async () => {
+            ensureBuiltinAppleFont();
+            return prepareDesktopThemeForFirstPaint();
+          })(),
+        ]);
+        nextPreparedLock = lockResult;
+        nextPreparedTheme = themeResult;
       } catch (error) {
-        console.warn("[MainApp] desktop theme preload failed:", error);
+        console.warn("[MainApp] first-paint preferences preload failed:", error);
+        try { nextPreparedLock = await preparePhoneLockForFirstPaint(); } catch {}
+        try { nextPreparedTheme = await prepareDesktopThemeForFirstPaint(); } catch {}
       }
 
       if (cancelled) return;
