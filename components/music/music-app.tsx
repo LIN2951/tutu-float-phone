@@ -756,7 +756,7 @@ function MineTab({ player, formatTime, onPlayNetease, onPlayAll, activePlaylist,
     useEffect(() => {
         let cancelled = false;
         const cfg = loadMusicApiConfig();
-        if (!cfg.baseUrl.trim()) return;
+        void cfg;
         getUserRecordWithCounts(1).then(records => {
             if (cancelled) return;
             setWeekRecords(records);
