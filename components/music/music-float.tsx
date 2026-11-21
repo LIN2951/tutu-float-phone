@@ -38,6 +38,7 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
     const player = useMusicPlayerOptional();
     const rootRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<DragState | null>(null);
+    const suppressOrbClickRef = useRef(false);
     const tuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const retractTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [mode, setMode] = useState<MusicFloatMode>(() => loadMusicFloatMode());
@@ -233,7 +234,7 @@ function MusicFloatControls({ hidden }: { hidden?: boolean }) {
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
         >
-            <button className="mf-orb" aria-label="展开音乐悬浮球" onClick={() => { if (!tucked) setExpanded(value => !value); }}>
+            <button className="mf-orb" aria-label="展开音乐悬浮球" onClick={() => { if (!suppressOrbClickRef.current && !tucked) setExpanded(value => !value); }}>
                 {track.coverUrl ? <img src={track.coverUrl} alt="" draggable={false} /> : <span>♫</span>}
                 <i data-playing={player.isPlaying ? "" : undefined} />
             </button>
