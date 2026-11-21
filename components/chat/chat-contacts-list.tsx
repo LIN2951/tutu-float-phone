@@ -1,4 +1,5 @@
 "use client";
+import { sanitizeAssistantDisplayText } from "@/lib/display-text-sanitizer";
 import { openChatAppearance } from "@/lib/chat-appearance";
 import { useChatUserAvatar } from "./use-chat-user-avatar";
 
@@ -172,7 +173,7 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
         const posts = loadMomentPosts();
         const map: Record<string, string> = {};
         for (const p of posts) {
-            if (!map[p.authorId]) map[p.authorId] = p.content;
+            if (!map[p.authorId]) map[p.authorId] = sanitizeAssistantDisplayText(p.content);
         }
         setLatestPost(map);
 

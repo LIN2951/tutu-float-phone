@@ -293,6 +293,10 @@ export function PhoneThemeApp({
   }, [onNotice, presetPendingDelete]);
 
   const handleExportTheme = useCallback(async () => {
+    const privacyConfirmed = window.confirm(
+      "导出包只包含主题外观、桌面布局、组件配置、自定义组件模板和它们引用的图片资源；不会主动导出聊天记录、账号密码、登录 Cookie 或音乐音频。\n\n注意：如果你在自定义组件代码、组件配置、主题名称或文件夹名称里写了私人信息，这些文字仍可能随主题包导出。请确认已经检查这些内容。"
+    );
+    if (!privacyConfirmed) return;
     setThemeTransferBusy(true);
     try {
       const result = await createThemePackageBlob({
@@ -300,10 +304,14 @@ export function PhoneThemeApp({
         iconLayout: pageIcons,
         widgets
       });
+      const defaultName = result.fileName.replace(/\.zip$/i, "");
+      const chosenName = window.prompt("请输入导出的主题包名称（留空使用默认名称）", defaultName);
+      if (chosenName === null) throw new Error("已取消主题导出。");
+      const safeName = (chosenName.trim() || defaultName).replace(/[\\/:*?"<>|]+/g, "-").slice(0, 80);
       const { downloadFile } = await import("@/lib/download-utils");
-      await downloadFile(result.blob, result.fileName);
+      await downloadFile(result.blob, safeName + ".zip");
       setShowThemeTransfer(false);
-      onNotice(`主题包已生成：${result.summary.assetCount} 个资源，${result.summary.widgetCount} 个桌面组件。若已打开系统分享面板，请选择“保存到文件”或“下载”完成本地保存。`);
+      onNotice(`主题包已保存：${safeName}.zip；包含 ${result.summary.assetCount} 个资源和 ${result.summary.widgetCount} 个桌面组件。`);
     } catch (error) {
       console.error(error);
       onNotice(error instanceof Error ? error.message : "主题导出失败");
@@ -587,6 +595,14 @@ export function PhoneThemeApp({
             <p className="ts-13 leading-relaxed text-[var(--c-text)]">
               主题包会包含主题色、壁纸、图标、桌面组件、自定义组件，以及桌面图标和组件位置。
             </p>
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-relaxed text-[var(--c-text)]">
+              隐私提示：主题包不包含聊天记录、账号密码或登录 Cookie；但自定义组件代码、组件配置和文件夹名称可能含有你自己输入的私人内容，请确认后再导出。
+            </p>
+            {typeof window !== "undefined" && typeof (window as Window & { AndroidShell?: { chooseExportFolder?: () => void } }).AndroidShell?.chooseExportFolder === "function" && (
+              <button type="button" className="w-full rounded-xl border border-[var(--c-border)] px-3 py-3 text-sm font-semibold text-[var(--c-text)]" onClick={() => (window as Window & { AndroidShell?: { chooseExportFolder?: () => void } }).AndroidShell?.chooseExportFolder?.()} disabled={themeTransferBusy}>
+                选择手机中的导出文件夹
+              </button>
+            )}
             <div className="grid grid-cols-2 gap-8 py-1">
               <button
                 type="button"

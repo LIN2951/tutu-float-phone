@@ -8,6 +8,9 @@ import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioManager
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import org.json.JSONObject
 import android.net.Uri
 import android.os.Build
 import android.util.Base64
@@ -15,6 +18,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import android.provider.MediaStore
+import android.provider.DocumentsContract
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.JavascriptInterface
@@ -44,7 +48,32 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var webView: WebView
+    private var musicReceiverRegistered = false
+    private val musicControlReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val control = intent?.getStringExtra("control") ?: return
+            val position = intent.getLongExtra("position", -1L)
+            val detail = JSONObject().put("control", control).put("position", position).toString()
+            if (::webView.isInitialized) webView.post {
+                webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('float-native-media-action',{detail:" + detail + "}))", null)
+            }
+        }
+    }
+
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
+
+    private val exportFolderLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                getSharedPreferences("float_export", MODE_PRIVATE).edit().putString("tree_uri", uri.toString()).apply()
+                webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('float-export-folder-selected'))", null)
+                Toast.makeText(this, "导出文件夹已设置", Toast.LENGTH_SHORT).show()
+            }.onFailure { Toast.makeText(this, "无法保存文件夹权限", Toast.LENGTH_SHORT).show() }
+        }
+    }
 
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -108,6 +137,7 @@ class MainActivity : AppCompatActivity() {
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false)
 
         webView.addJavascriptInterface(ShellBridge(), "AndroidShell")
+        registerMusicReceiver()
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -247,7 +277,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun registerMusicReceiver() {
+        if (musicReceiverRegistered) return
+        val filter = IntentFilter(MusicMediaService.ACTION_CONTROL)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(musicControlReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(musicControlReceiver, filter)
+        }
+        musicReceiverRegistered = true
+    }
+
     override fun onDestroy() {
+        if (musicReceiverRegistered) unregisterReceiver(musicControlReceiver)
         CookieManager.getInstance().flush()
         webView.destroy()
         super.onDestroy()
@@ -257,6 +300,29 @@ class MainActivity : AppCompatActivity() {
     inner class ShellBridge {
         @JavascriptInterface
         fun getVersion(): String = VERSION
+        @JavascriptInterface
+        fun stopMediaSession() {
+            runCatching { startService(Intent(this@MainActivity, MusicMediaService::class.java).setAction(MusicMediaService.ACTION_STOP)) }
+        }
+
+        @JavascriptInterface
+        fun updateMediaSession(json: String) {
+            runCatching {
+                val data = JSONObject(json)
+                val intent = Intent(this@MainActivity, MusicMediaService::class.java)
+                    .setAction(MusicMediaService.ACTION_UPDATE)
+                    .putExtra("title", data.optString("title"))
+                    .putExtra("artist", data.optString("artist"))
+                    .putExtra("album", data.optString("album"))
+                    .putExtra("artwork", data.optString("artwork"))
+                    .putExtra("duration", (data.optDouble("duration") * 1000).toLong())
+                    .putExtra("position", (data.optDouble("position") * 1000).toLong())
+                    .putExtra("playing", data.optBoolean("playing"))
+                    .putExtra("liked", data.optBoolean("liked"))
+                if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+            }.onFailure { android.util.Log.e("FloatMedia", "Media session update failed", it) }
+        }
+
 
         /**
          * 将网页生成的 Blob 文件保存到系统公共 Downloads/Float 目录。
@@ -279,15 +345,22 @@ class MainActivity : AppCompatActivity() {
                     put(MediaStore.Downloads.IS_PENDING, 1)
                 }
                 val resolver = contentResolver
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                    ?: return "ERROR:无法创建下载文件，请检查手机存储空间。"
+                val selectedTree = getSharedPreferences("float_export", MODE_PRIVATE).getString("tree_uri", null)?.let(Uri::parse)
+                val uri = if (selectedTree != null) {
+                    val treeDocument = DocumentsContract.buildDocumentUriUsingTree(
+                        selectedTree, DocumentsContract.getTreeDocumentId(selectedTree)
+                    )
+                    DocumentsContract.createDocument(resolver, treeDocument, mimeType.ifBlank { "application/zip" }, safeName)
+                } else {
+                    resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                } ?: return "ERROR:无法创建导出文件，请检查文件夹权限和手机存储空间。"
                 try {
                     resolver.openOutputStream(uri)?.use { output -> output.write(bytes) }
                         ?: throw IllegalStateException("无法写入下载文件")
-                    val completed = ContentValues().apply {
-                        put(MediaStore.Downloads.IS_PENDING, 0)
+                    if (selectedTree == null) {
+                        val completed = ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }
+                        resolver.update(uri, completed, null, null)
                     }
-                    resolver.update(uri, completed, null, null)
                     "OK"
                 } catch (error: Exception) {
                     resolver.delete(uri, null, null)
@@ -299,6 +372,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         /** 打开本应用的系统设置页（引导用户关电池限制、开自启动）。 */
+        @JavascriptInterface
+        fun chooseExportFolder() {
+            runOnUiThread { exportFolderLauncher.launch(null) }
+        }
+
         @JavascriptInterface
         fun openAppSettings() {
             runCatching {
