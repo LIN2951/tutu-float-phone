@@ -5181,13 +5181,13 @@
     backface-visibility: hidden;
 }
 .music-float:not([data-expanded]) {
-    width: var(--music-float-size, 72px);
-    height: var(--music-float-size, 72px);
-    border-radius: calc(var(--music-float-size, 72px) * .34);
+    width: var(--music-float-size, 46px);
+    height: var(--music-float-size, 46px);
+    border-radius: calc(var(--music-float-size, 46px) * .34);
 }
 .music-float:not([data-expanded]) .music-float-cover-wrap {
-    width: calc(var(--music-float-size, 72px) - 16px);
-    height: calc(var(--music-float-size, 72px) - 16px);
+    width: calc(var(--music-float-size, 46px) - 16px);
+    height: calc(var(--music-float-size, 46px) - 16px);
 }
 .music-float[data-float-shape="circle"]:not([data-expanded]),
 .music-float[data-float-shape="glow"]:not([data-expanded]) {
@@ -5246,8 +5246,8 @@
 
 /* Music float rebuilt from the handoff spec: clean cover orb, no vinyl ornament. */
 .music-float {
-    width: var(--music-float-size, 72px);
-    height: var(--music-float-size, 72px);
+    width: var(--music-float-size, 46px);
+    height: var(--music-float-size, 46px);
     border-radius: 50%;
     overflow: visible;
     background: transparent;
@@ -5257,8 +5257,8 @@
     -webkit-backdrop-filter: none;
 }
 .music-float:not([data-expanded]) {
-    width: var(--music-float-size, 72px);
-    height: var(--music-float-size, 72px);
+    width: var(--music-float-size, 46px);
+    height: var(--music-float-size, 46px);
 }
 .music-float-inner {
     width: 100%;
@@ -5273,8 +5273,8 @@
     -webkit-backdrop-filter: blur(20px) saturate(160%);
 }
 .music-float-cover-wrap {
-    width: calc(var(--music-float-size, 72px) - 2px);
-    height: calc(var(--music-float-size, 72px) - 2px);
+    width: calc(var(--music-float-size, 46px) - 2px);
+    height: calc(var(--music-float-size, 46px) - 2px);
     flex: 0 0 auto;
     border-radius: inherit;
     overflow: hidden;
