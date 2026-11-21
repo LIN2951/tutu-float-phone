@@ -271,7 +271,7 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
             if (!cancelled) setFirstPaintMediaReady(true);
         });
         return () => { cancelled = true; };
-    }, [firstPaintMediaReady, coverUrl, selectedTrack?.coverUrl, featured, visiblePosts]);
+    }, [firstPaintMediaReady, coverUrl, selectedTrack?.coverUrl, featured, posts, visiblePostCount]);
 
     const handleLoadMorePosts = useCallback(() => {
         if (!hasMorePosts) return;
