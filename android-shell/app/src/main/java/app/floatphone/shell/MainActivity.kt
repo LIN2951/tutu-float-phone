@@ -213,6 +213,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Recover a stale Android WebView InputConnection. This can happen after
+        // returning to Float: the keyboard is visible, but text is no longer
+        // delivered to the focused HTML input/textarea.
+        if (::webView.isInitialized) {
+            webView.onResume()
+            webView.resumeTimers()
+            webView.isFocusable = true
+            webView.isFocusableInTouchMode = true
+            webView.requestFocus()
+            webView.postDelayed({
+                runCatching {
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE)
+                        as? android.view.inputmethod.InputMethodManager
+                    if (imm != null && webView.hasFocus()) imm.restartInput(webView)
+                }.onFailure { android.util.Log.w("FloatInput", "Input connection recovery skipped", it) }
+            }, 180L)
+        }
+    }
+
     override fun onDestroy() {
         CookieManager.getInstance().flush()
         webView.destroy()
