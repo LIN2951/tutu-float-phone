@@ -301,6 +301,11 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun getVersion(): String = VERSION
         @JavascriptInterface
+        fun stopMediaSession() {
+            runCatching { startService(Intent(this@MainActivity, MusicMediaService::class.java).setAction(MusicMediaService.ACTION_STOP)) }
+        }
+
+        @JavascriptInterface
         fun updateMediaSession(json: String) {
             runCatching {
                 val data = JSONObject(json)

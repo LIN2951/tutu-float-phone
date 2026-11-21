@@ -452,6 +452,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         if (!currentTrack) {
             session.metadata = null;
             session.playbackState = "none";
+            const shell = (window as Window & { AndroidShell?: { stopMediaSession?: () => void } }).AndroidShell;
+            shell?.stopMediaSession?.();
             return;
         }
         if ("MediaMetadata" in window) {
@@ -473,7 +475,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
             ["previoustrack", () => prev()],
             ["nexttrack", () => next()],
             ["seekto", (details) => { if (typeof details.seekTime === "number") seek(details.seekTime); }],
-            ["like", () => setTrackLiked(currentTrack.id, !currentTrack.liked)],
+            ["like" as MediaSessionAction, () => setTrackLiked(currentTrack.id, !currentTrack.liked)],
         ];
         for (const [action, handler] of handlers) {
             try { session.setActionHandler(action, handler); } catch { /* unsupported action */ }
