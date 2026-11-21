@@ -55,6 +55,10 @@ export async function downloadFile(blob: Blob, filename: string, options: Downlo
                 return;
             }
         } catch (error) {
+            const nativeError = error as { code?: string; message?: string };
+            if (nativeError?.code === "ERR_CANCELED" || /cancel(?:led)?|dismissed/i.test(nativeError?.message ?? "")) {
+                throw new Error("已取消保存，主题包尚未保存到本地。");
+            }
             // 原生分享面板不可用时继续走浏览器下载；文件写入错误则交给浏览器兜底。
             console.warn("[downloadFile] Native file sharing unavailable, using browser fallback.", error);
         }
