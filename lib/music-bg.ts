@@ -122,3 +122,21 @@ export function playerBgStyle(cfg: MusicBgConfig): BgInlineStyle | undefined {
     }
     return undefined;
 }
+
+export type MusicFloatMode = "orb" | "island";
+const MUSIC_FLOAT_MODE_KEY = "music-float-mode-v1";
+registerKvMigration(MUSIC_FLOAT_MODE_KEY);
+export const MUSIC_FLOAT_MODE_EVENT = "music-float-mode-change";
+
+export function loadMusicFloatMode(): MusicFloatMode {
+    if (typeof window === "undefined") return "orb";
+    try {
+        const value = kvGet(MUSIC_FLOAT_MODE_KEY);
+        return value === "island" ? "island" : "orb";
+    } catch { return "orb"; }
+}
+
+export function saveMusicFloatMode(mode: MusicFloatMode): void {
+    kvSet(MUSIC_FLOAT_MODE_KEY, mode);
+    window.dispatchEvent(new CustomEvent(MUSIC_FLOAT_MODE_EVENT));
+}
