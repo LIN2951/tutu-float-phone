@@ -30,6 +30,7 @@ import {
     loadMusicBg, saveMusicBg, clearMusicBg, fileToCompressedDataUrl, appBgStyle,
     MUSIC_BG_EVENT, type MusicBgConfig, type MusicPlayerBgMode,
     loadMusicFloatAppearance, saveMusicFloatAppearance, MUSIC_FLOAT_COLORS, MUSIC_FLOAT_CARD_STYLES, MUSIC_FLOAT_SHAPES,
+    loadMusicFloatMode, saveMusicFloatMode, type MusicFloatMode,
     type MusicFloatAppearance,
 } from "@/lib/music-bg";
 
@@ -1525,6 +1526,7 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
     const bgFileRef = useRef<HTMLInputElement>(null);
     const playerFileRef = useRef<HTMLInputElement>(null);
     const [floatAppearance, setFloatAppearance] = useState<MusicFloatAppearance>(() => loadMusicFloatAppearance());
+    const [floatMode, setFloatMode] = useState<MusicFloatMode>(() => loadMusicFloatMode());
     const [floatMsg, setFloatMsg] = useState<string | null>(null);
     const floatImageRef = useRef<HTMLInputElement>(null);
     const applyFloatAppearance = (next: MusicFloatAppearance) => {
@@ -1865,6 +1867,12 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
 
                 <div className="music-settings-section music-qr-section">
                     <div className="music-settings-label">后台悬浮球</div>
+                    <div className="music-settings-hint">选择后台悬浮控件样式，可随时切换</div>
+                    <div className="music-settings-actions">
+                        <button className="music-settings-btn" {...(floatMode === "orb" ? { "data-on": "" } : {})} onClick={() => { saveMusicFloatMode("orb"); setFloatMode("orb"); }}>悬浮球</button>
+                        <button className="music-settings-btn" {...(floatMode === "island" ? { "data-on": "" } : {})} onClick={() => { saveMusicFloatMode("island"); setFloatMode("island"); }}>顶部灵动岛</button>
+                    </div>
+
                     <div className="music-settings-hint">独立控制悬浮球显示；隐藏不会暂停或清除正在播放的歌曲</div>
                     <div className="music-settings-actions">
                         <button className="music-settings-btn" {...(floatAppearance.enabled ? { "data-on": "" } : {})} onClick={() => applyFloatAppearance({ ...floatAppearance, enabled: true })}>显示悬浮球</button>
