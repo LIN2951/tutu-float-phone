@@ -103,17 +103,6 @@ export default function MusicApp({ onClose }: Props) {
         return () => window.removeEventListener("music-library-updated", handleLibraryUpdated);
     }, []);
 
-    useEffect(() => {
-        const refreshCloudPlaylists = () => {
-            void getUserPlaylists(true).then(next => {
-                setPlaylists(next);
-                if (next.length > 0) kvSet("music-playlists-cache", JSON.stringify(next));
-            });
-        };
-        window.addEventListener("music-cloud-playlists-updated", refreshCloudPlaylists);
-        return () => window.removeEventListener("music-cloud-playlists-updated", refreshCloudPlaylists);
-    }, []);
-
     const clearMusicToast = useCallback(() => {
         if (musicToastTimerRef.current) clearTimeout(musicToastTimerRef.current);
         if (musicLoadingFallbackRef.current) clearTimeout(musicLoadingFallbackRef.current);
@@ -216,9 +205,9 @@ export default function MusicApp({ onClose }: Props) {
             showMusicToast(info.reason || "加载失败，请稍后重试", 2600);
             return;
         }
-        // Start audio as soon as the play URL is ready. Search results already
-        // contain title/artist/cover; detail and lyrics must not block playback.
-        const track = toMusicTrack(result);
+        const detail = await getNeteaseSongDetail(result.id);
+        const lyrics = await getNeteaseLyrics(result.id);
+        const track = toMusicTrack(result, { lyrics, coverUrl: detail?.coverUrl, name: detail?.name, artists: detail?.artists });
         // Prepend to existing queue
         if (!player.queue.some(t => t.id === track.id)) {
             player.setQueue([track, ...player.queue]);
@@ -756,7 +745,7 @@ function MineTab({ player, formatTime, onPlayNetease, onPlayAll, activePlaylist,
     useEffect(() => {
         let cancelled = false;
         const cfg = loadMusicApiConfig();
-        void cfg;
+        if (!cfg.baseUrl.trim()) return;
         getUserRecordWithCounts(1).then(records => {
             if (cancelled) return;
             setWeekRecords(records);
@@ -788,17 +777,6 @@ function MineTab({ player, formatTime, onPlayNetease, onPlayAll, activePlaylist,
             writeMusicCache("music-user-events", events);
         });
         return () => { cancelled = true; };
-    }, []);
-
-    useEffect(() => {
-        const refreshRecent = () => {
-            void getRecentSongs().then(songs => {
-                setRecentSongs(songs);
-                writeMusicCache("music-user-recent-songs", songs);
-            });
-        };
-        window.addEventListener("music-recent-updated", refreshRecent);
-        return () => window.removeEventListener("music-recent-updated", refreshRecent);
     }, []);
 
     if (activePlaylist) {
@@ -1321,16 +1299,6 @@ function PlaylistsTab({ player, formatTime, onPlayNetease, onPlayAll, activePlay
 }) {
     const [tracks, setTracks] = useState<NeteaseSearchResult[]>([]);
     const [loadingTracks, setLoadingTracks] = useState(false);
-    const [playlistRefresh, setPlaylistRefresh] = useState(0);
-
-    useEffect(() => {
-        const refresh = (event: Event) => {
-            const playlistId = (event as CustomEvent<{ playlistId?: number }>).detail?.playlistId;
-            if (!playlistId || playlistId === activePlaylist?.id) setPlaylistRefresh(value => value + 1);
-        };
-        window.addEventListener("music-cloud-playlists-updated", refresh);
-        return () => window.removeEventListener("music-cloud-playlists-updated", refresh);
-    }, [activePlaylist?.id]);
     const [detail, setDetail] = useState<NeteasePlaylistDetail | null>(null);
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [subDelta, setSubDelta] = useState(0);
@@ -1401,7 +1369,7 @@ function PlaylistsTab({ player, formatTime, onPlayNetease, onPlayAll, activePlay
         });
 
         return () => { cancelled = true; };
-    }, [activePlaylist, playlistRefresh]);
+    }, [activePlaylist]);
 
     const openPlaylist = async (pl: NeteasePlaylist) => {
         setActivePlaylist(pl);
@@ -1896,13 +1864,7 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
                 </div>
 
                 <div className="music-settings-section music-qr-section">
-                    <div className="music-settings-label">后台悬浮样式</div>
-                    <div className="music-settings-hint">选择悬浮球或顶部灵动岛，两种模式不会同时显示</div>
-                    <div className="music-settings-actions">
-                        <button className="music-settings-btn" {...(floatAppearance.mode !== "island" ? { "data-on": "" } : {})} onClick={() => applyFloatAppearance({ ...floatAppearance, mode: "orb" })}>悬浮球</button>
-                        <button className="music-settings-btn" {...(floatAppearance.mode === "island" ? { "data-on": "" } : {})} onClick={() => applyFloatAppearance({ ...floatAppearance, mode: "island" })}>顶部灵动岛</button>
-                    </div>
-                    <div className="music-settings-label" style={{ marginTop: 14 }}>后台悬浮球</div>
+                    <div className="music-settings-label">后台悬浮球</div>
                     <div className="music-settings-hint">独立控制悬浮球显示；隐藏不会暂停或清除正在播放的歌曲</div>
                     <div className="music-settings-actions">
                         <button className="music-settings-btn" {...(floatAppearance.enabled ? { "data-on": "" } : {})} onClick={() => applyFloatAppearance({ ...floatAppearance, enabled: true })}>显示悬浮球</button>
@@ -1913,7 +1875,7 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
                     <input
                         className="music-settings-input"
                         type="range"
-                        min={46}
+                        min={48}
                         max={112}
                         step={4}
                         value={floatAppearance.size ?? 72}
