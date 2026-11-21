@@ -103,6 +103,17 @@ export default function MusicApp({ onClose }: Props) {
         return () => window.removeEventListener("music-library-updated", handleLibraryUpdated);
     }, []);
 
+    useEffect(() => {
+        const refreshCloudPlaylists = () => {
+            void getUserPlaylists(true).then(next => {
+                setPlaylists(next);
+                if (next.length > 0) kvSet("music-playlists-cache", JSON.stringify(next));
+            });
+        };
+        window.addEventListener("music-cloud-playlists-updated", refreshCloudPlaylists);
+        return () => window.removeEventListener("music-cloud-playlists-updated", refreshCloudPlaylists);
+    }, []);
+
     const clearMusicToast = useCallback(() => {
         if (musicToastTimerRef.current) clearTimeout(musicToastTimerRef.current);
         if (musicLoadingFallbackRef.current) clearTimeout(musicLoadingFallbackRef.current);
@@ -1299,6 +1310,16 @@ function PlaylistsTab({ player, formatTime, onPlayNetease, onPlayAll, activePlay
 }) {
     const [tracks, setTracks] = useState<NeteaseSearchResult[]>([]);
     const [loadingTracks, setLoadingTracks] = useState(false);
+    const [playlistRefresh, setPlaylistRefresh] = useState(0);
+
+    useEffect(() => {
+        const refresh = (event: Event) => {
+            const playlistId = (event as CustomEvent<{ playlistId?: number }>).detail?.playlistId;
+            if (!playlistId || playlistId === activePlaylist?.id) setPlaylistRefresh(value => value + 1);
+        };
+        window.addEventListener("music-cloud-playlists-updated", refresh);
+        return () => window.removeEventListener("music-cloud-playlists-updated", refresh);
+    }, [activePlaylist?.id]);
     const [detail, setDetail] = useState<NeteasePlaylistDetail | null>(null);
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [subDelta, setSubDelta] = useState(0);
@@ -1369,7 +1390,7 @@ function PlaylistsTab({ player, formatTime, onPlayNetease, onPlayAll, activePlay
         });
 
         return () => { cancelled = true; };
-    }, [activePlaylist]);
+    }, [activePlaylist, playlistRefresh]);
 
     const openPlaylist = async (pl: NeteasePlaylist) => {
         setActivePlaylist(pl);
