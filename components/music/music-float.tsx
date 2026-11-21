@@ -66,6 +66,7 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
         if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
         setDismissing(true);
         dismissTimerRef.current = setTimeout(() => {
+            player.stop();
             player.dismissFloat();
             setDismissing(false);
             setExpanded(false);
