@@ -357,19 +357,27 @@ export type NeteasePlaylist = {
     specialType?: number;
 };
 
+let cachedLoginUid: { value: number | null; at: number } | null = null;
+let cachedUserPlaylists: { value: NeteasePlaylist[]; at: number } | null = null;
+const playlistTrackCache = new Map<number, { value: NeteaseSearchResult[]; at: number }>();
+
 /** Get current logged-in user's uid */
 async function getLoginUid(): Promise<number | null> {
+    if (cachedLoginUid && Date.now() - cachedLoginUid.at < 60_000) return cachedLoginUid.value;
     const base = neteaseBase();
     if (!base) return null;
     try {
         const resp = await fetch(withNeteaseParams(`${base}/login/status?timestamp=${Date.now()}`));
         const data = await resp.json();
-        return data?.data?.profile?.userId || null;
-    } catch { return null; }
+        const uid = data?.data?.profile?.userId || null;
+        cachedLoginUid = { value: uid, at: Date.now() };
+        return uid;
+    } catch { cachedLoginUid = { value: null, at: Date.now() }; return null; }
 }
 
 /** Fetch user's playlists */
-export async function getUserPlaylists(): Promise<NeteasePlaylist[]> {
+export async function getUserPlaylists(force = false): Promise<NeteasePlaylist[]> {
+    if (!force && cachedUserPlaylists && Date.now() - cachedUserPlaylists.at < 45_000) return cachedUserPlaylists.value;
     const base = neteaseBase();
     if (!base) return [];
     const uid = await getLoginUid();
@@ -377,7 +385,7 @@ export async function getUserPlaylists(): Promise<NeteasePlaylist[]> {
     try {
         const resp = await fetch(withNeteaseParams(`${base}/user/playlist?uid=${uid}&timestamp=${Date.now()}`));
         const data = await resp.json();
-        return (data?.playlist || []).map((p: any) => ({
+        const playlists = (data?.playlist || []).map((p: any) => ({
             id: p.id,
             name: p.name,
             coverUrl: secureHttpUrl(p.coverImgUrl),
@@ -387,18 +395,24 @@ export async function getUserPlaylists(): Promise<NeteasePlaylist[]> {
             playCount: p.playCount,
             specialType: p.specialType,
         }));
-    } catch { return []; }
+        cachedUserPlaylists = { value: playlists, at: Date.now() };
+        return playlists;
+    } catch { return cachedUserPlaylists?.value || []; }
 }
 
-/** Fetch tracks in a playlist */
-export async function getPlaylistTracks(playlistId: number): Promise<NeteaseSearchResult[]> {
+/** Fetch tracks in a playlist; short-lived cache keeps repeated opens instant. */
+export async function getPlaylistTracks(playlistId: number, force = false): Promise<NeteaseSearchResult[]> {
+    const cached = playlistTrackCache.get(playlistId);
+    if (!force && cached && Date.now() - cached.at < 90_000) return cached.value;
     const base = neteaseBase();
     if (!base) return [];
     try {
         const resp = await fetch(withNeteaseParams(`${base}/playlist/track/all?id=${playlistId}&timestamp=${Date.now()}`));
         const data = await resp.json();
-        return (data?.songs || []).map(mapSongToSearchResult);
-    } catch { return []; }
+        const songs = (data?.songs || []).map(mapSongToSearchResult);
+        playlistTrackCache.set(playlistId, { value: songs, at: Date.now() });
+        return songs;
+    } catch { return cached?.value || []; }
 }
 
 export async function getDailyRecommendSongs(): Promise<NeteaseSearchResult[]> {
@@ -743,6 +757,7 @@ export async function setCloudSongLiked(songId: number, liked: boolean): Promise
             return { ok: false, message: data?.message || "网易云收藏失败" };
         }
         cloudLikeCache.set(songId, { liked, checkedAt: Date.now() });
+        cachedUserPlaylists = null;
         cloudLikeListPromise = null;
         cloudLikeListAt = 0;
         window.dispatchEvent(new CustomEvent("music-cloud-likes-updated", { detail: { songId, liked } }));
