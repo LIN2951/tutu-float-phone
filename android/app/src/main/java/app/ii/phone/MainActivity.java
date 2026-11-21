@@ -46,5 +46,28 @@ public class MainActivity extends BridgeActivity {
    updateWatchdog.postDelayed(()->{try{if(resources.rollbackIfPending(candidate))applyResource();}catch(Exception error){android.util.Log.e("FloatUpdates","Rollback failed",error);}},90000);
   }catch(Exception error){android.util.Log.e("FloatUpdates","Resource activation failed",error);try{resources.rollback();String fallback=resources.activePath();if(fallback==null)bridge.setServerAssetPath("public");else bridge.setServerBasePath(fallback);}catch(Exception ignored){}}
  }
+ @Override public void onResume() {
+  super.onResume();
+  // Android WebView can occasionally keep the keyboard visible while its
+  // InputConnection stops delivering text to the focused HTML editor. Rebind
+  // the connection when Float returns to the foreground; this does not reload
+  // the page or touch any web/app data.
+  try {
+   final android.webkit.WebView webView=bridge.getWebView();
+   if(webView!=null) {
+    webView.onResume();
+    webView.resumeTimers();
+    webView.setFocusable(true);
+    webView.setFocusableInTouchMode(true);
+    webView.requestFocus();
+    webView.postDelayed(() -> {
+     try {
+      android.view.inputmethod.InputMethodManager imm=(android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+      if(imm!=null && webView.hasFocus()) imm.restartInput(webView);
+     } catch(Exception error) { android.util.Log.w("FloatInput","Input connection recovery skipped",error); }
+    },180);
+   }
+  } catch(Exception error) { android.util.Log.w("FloatInput","WebView focus recovery skipped",error); }
+ }
  @Override public void onDestroy(){updateWatchdog.removeCallbacksAndMessages(null);super.onDestroy();}
 }
