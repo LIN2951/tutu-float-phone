@@ -5242,3 +5242,84 @@
     cursor: pointer;
     touch-action: pan-x;
 }
+
+
+/* Music float rebuilt from the handoff spec: clean cover orb, no vinyl ornament. */
+.music-float {
+    width: var(--music-float-size, 72px);
+    height: var(--music-float-size, 72px);
+    border-radius: 50%;
+    overflow: visible;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+.music-float:not([data-expanded]) {
+    width: var(--music-float-size, 72px);
+    height: var(--music-float-size, 72px);
+}
+.music-float-inner {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border-radius: inherit;
+    overflow: hidden;
+    background: rgba(78,78,84,.32);
+    border: 1px solid rgba(255,255,255,.22);
+    box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+.music-float-cover-wrap {
+    width: calc(var(--music-float-size, 72px) - 2px);
+    height: calc(var(--music-float-size, 72px) - 2px);
+    flex: 0 0 auto;
+    border-radius: inherit;
+    overflow: hidden;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    animation: none !important;
+}
+.music-float-vinyl-groove { display: none !important; }
+.music-float-vinyl-center {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    box-shadow: none;
+    background: transparent;
+}
+.music-float-cover-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.music-float[data-float-shape="circle"]:not([data-expanded]),
+.music-float[data-float-shape="circle"] .music-float-inner,
+.music-float[data-float-shape="circle"] .music-float-cover-wrap,
+.music-float[data-float-shape="circle"] .music-float-vinyl-center { border-radius: 50%; }
+.music-float[data-float-shape="square"]:not([data-expanded]),
+.music-float[data-float-shape="square"] .music-float-inner { border-radius: 18px; }
+.music-float[data-float-shape="square"] .music-float-cover-wrap,
+.music-float[data-float-shape="square"] .music-float-vinyl-center { border-radius: 14px; }
+.music-float[data-expanded] {
+    width: 264px;
+    height: 104px;
+    border-radius: 24px;
+}
+.music-float[data-expanded] .music-float-inner {
+    width: 264px;
+    height: 104px;
+    padding: 0 12px;
+    border-radius: 24px;
+}
+.music-float[data-expanded] .music-float-cover-wrap {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+}
+.music-float[data-expanded][data-float-shape="circle"] .music-float-cover-wrap,
+.music-float[data-expanded][data-float-shape="circle"] .music-float-vinyl-center { border-radius: 50%; }
+.music-float[data-expanded][data-float-shape="square"] .music-float-cover-wrap,
+.music-float[data-expanded][data-float-shape="square"] .music-float-vinyl-center { border-radius: 12px; }
