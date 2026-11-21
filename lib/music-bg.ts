@@ -127,6 +127,7 @@ export function playerBgStyle(cfg: MusicBgConfig): BgInlineStyle | undefined {
 // ── Floating orb appearance preferences ──
 export type MusicFloatAppearance = {
     enabled: boolean;
+    mode?: "orb" | "island";
     color: string;
     cardStyle: string;
     shape: string;
@@ -163,7 +164,7 @@ export const MUSIC_FLOAT_SHAPES = [
 ] as const;
 
 export const DEFAULT_MUSIC_FLOAT_APPEARANCE: MusicFloatAppearance = {
-    enabled: true, color: "violet", cardStyle: "glass", shape: "circle", image: "", size: 72,
+    enabled: true, mode: "orb", color: "violet", cardStyle: "glass", shape: "circle", image: "", size: 72,
 };
 
 export function loadMusicFloatAppearance(): MusicFloatAppearance {
@@ -174,6 +175,7 @@ export function loadMusicFloatAppearance(): MusicFloatAppearance {
         const value = JSON.parse(raw) as Partial<MusicFloatAppearance>;
         return {
             enabled: typeof value.enabled === "boolean" ? value.enabled : true,
+            mode: value.mode === "island" ? "island" : "orb",
             color: MUSIC_FLOAT_COLORS.some(item => item.id === value.color) ? value.color! : "violet",
             cardStyle: MUSIC_FLOAT_CARD_STYLES.some(item => item.id === value.cardStyle) ? value.cardStyle! : "glass",
             shape: MUSIC_FLOAT_SHAPES.some(item => item.id === value.shape) ? value.shape! : "circle",
