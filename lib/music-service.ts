@@ -344,6 +344,31 @@ export async function checkLoginStatus(baseUrl: string): Promise<{ loggedIn: boo
     } catch { return { loggedIn: false }; }
 }
 
+
+/** Read the logged-in Netease account's liked song IDs. */
+export async function getCloudSongLiked(songId: number): Promise<boolean> {
+    const base = neteaseBase();
+    if (!base || !Number.isFinite(songId)) return false;
+    const uid = await getLoginUid();
+    if (!uid) return false;
+    try {
+        const resp = await fetch(withNeteaseParams(`${base}/likelist?uid=${uid}&timestamp=${Date.now()}`));
+        const data = await resp.json();
+        return Array.isArray(data?.ids) && data.ids.some((id: number) => Number(id) === songId);
+    } catch { return false; }
+}
+
+/** Update the real Netease account's like state; false means the write was not confirmed. */
+export async function setCloudSongLiked(songId: number, liked: boolean): Promise<boolean> {
+    const base = neteaseBase();
+    if (!base || !Number.isFinite(songId) || !(await getLoginUid())) return false;
+    try {
+        const resp = await fetch(withNeteaseParams(`${base}/like?id=${songId}&like=${liked}&timestamp=${Date.now()}`));
+        const data = await resp.json();
+        return data?.code === 200 && data?.playlistId !== undefined || data?.code === 200;
+    } catch { return false; }
+}
+
 // ── User Playlists ──
 
 export type NeteasePlaylist = {
