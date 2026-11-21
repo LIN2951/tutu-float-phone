@@ -1,232 +1,255 @@
-// components/music/music-float.tsx — Floating music control widget (draggable vinyl)
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useMusicControlsOptional } from "@/lib/music-context";
+import { useMusicPlayerOptional } from "@/lib/music-context";
+import { getCloudSongLiked, setCloudSongLiked } from "@/lib/music-service";
+import { loadMusicFloatMode, MUSIC_FLOAT_MODE_EVENT, type MusicFloatMode } from "@/lib/music-bg";
+import MusicDesktopLyrics from "@/components/music/music-desktop-lyrics";
 
-const DRAG_START_THRESHOLD = 6;
-const SWIPE_DISMISS_EDGE_X = 4;
-const SWIPE_DISMISS_SPEED = 1.5; // px/ms
-const SWIPE_DISMISS_ARMING_X = 88;
-const SWIPE_INERTIA_MS = 140;
-const SWIPE_VELOCITY_RECENT_MS = 180;
+const DRAG_THRESHOLD = 6;
+const EDGE_GAP = 10;
+const TUCK_DELAY = 2800;
+const RETRACT_MS = 210;
+
+type DragState = { pointerId: number; startX: number; startY: number; originX: number; originY: number; moved: boolean; wasTucked: boolean };
 
 export default function MusicFloat({ hidden }: { hidden?: boolean }) {
-    const player = useMusicControlsOptional();
-    const floatRef = useRef<HTMLDivElement>(null);
-    const [pos, setPos] = useState({ x: 310, y: 680 });
-    const dragRef = useRef<{
-        pointerId: number | null; active: boolean;
-        startX: number; startY: number; origX: number; origY: number;
-        lastX: number; lastTime: number;
-        lastLeftSpeed: number; lastLeftSpeedTime: number;
-        moved: boolean; startedOnInfo: boolean;
-    }>({
-        pointerId: null,
-        active: false,
-        startX: 0,
-        startY: 0,
-        origX: 0,
-        origY: 0,
-        lastX: 0,
-        lastTime: 0,
-        lastLeftSpeed: 0,
-        lastLeftSpeedTime: 0,
-        moved: false,
-        startedOnInfo: false,
-    });
-    const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const player = useMusicPlayerOptional();
+    const [lyricsOpen, setLyricsOpen] = useState(false);
+    const [unlockLyrics, setUnlockLyrics] = useState(0);
+    useEffect(() => {
+        const toggle = () => {
+            setLyricsOpen(true);
+            setUnlockLyrics(value => value + 1);
+        };
+        window.addEventListener("music-desktop-lyrics-toggle", toggle);
+        return () => window.removeEventListener("music-desktop-lyrics-toggle", toggle);
+    }, []);
+    const lyricsVisible = !!player?.currentTrack && !hidden && !player.floatDismissed;
+    return (
+        <>
+            <MusicFloatControls hidden={hidden} />
+            <MusicDesktopLyrics open={lyricsOpen && lyricsVisible} unlockSignal={unlockLyrics} onClose={() => setLyricsOpen(false)} />
+        </>
+    );
+}
+
+function MusicFloatControls({ hidden }: { hidden?: boolean }) {
+    const player = useMusicPlayerOptional();
+    const rootRef = useRef<HTMLDivElement>(null);
+    const dragRef = useRef<DragState | null>(null);
+    const suppressOrbClickRef = useRef(false);
+    const tuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const retractTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [mode, setMode] = useState<MusicFloatMode>(() => loadMusicFloatMode());
+    const [pos, setPos] = useState({ x: 320, y: 620 });
+    const [side, setSide] = useState<"left" | "right">("right");
     const [expanded, setExpanded] = useState(false);
-    const [dismissing, setDismissing] = useState(false);
+    const [tucked, setTucked] = useState(false);
+    const [closing, setClosing] = useState(false);
+    const [retracting, setRetracting] = useState(false);
+    const [liked, setLiked] = useState(false);
+    const [likeBusy, setLikeBusy] = useState(false);
+    const [likeMessage, setLikeMessage] = useState("");
+
+    useEffect(() => {
+        const refresh = () => { setMode(loadMusicFloatMode()); setExpanded(false); };
+        window.addEventListener(MUSIC_FLOAT_MODE_EVENT, refresh);
+        return () => window.removeEventListener(MUSIC_FLOAT_MODE_EVENT, refresh);
+    }, []);
 
     const clampPos = useCallback((x: number, y: number) => {
-        const el = floatRef.current;
-        const parent = el?.closest("[data-ui='phone-screen']") as HTMLElement | null;
-        if (!el || !parent) return { x, y };
-        const pw = parent.clientWidth;
-        const ph = parent.clientHeight;
-        const ew = el.offsetWidth;
-        const eh = el.offsetHeight;
+        const el = rootRef.current;
+        const host = el?.closest("[data-ui='phone-screen']") as HTMLElement | null;
+        if (!el || !host) return { x, y };
+        const w = el.offsetWidth, h = el.offsetHeight;
         return {
-            x: Math.max(0, Math.min(x, pw - ew)),
-            y: Math.max(0, Math.min(y, ph - eh)),
+            x: Math.max(0, Math.min(x, host.clientWidth - w)),
+            y: Math.max(0, Math.min(y, host.clientHeight - h)),
         };
     }, []);
 
-    const dismissFloat = useCallback(() => {
-        if (!player) return;
-        if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
-        setDismissing(true);
-        dismissTimerRef.current = setTimeout(() => {
-            player.dismissFloat();
-            setDismissing(false);
-            setExpanded(false);
-            dismissTimerRef.current = null;
-        }, 250);
-    }, [player]);
+    const clearTuckTimer = () => {
+        if (tuckTimerRef.current) clearTimeout(tuckTimerRef.current);
+        tuckTimerRef.current = null;
+    };
+    const scheduleTuck = useCallback(() => {
+        clearTuckTimer();
+        tuckTimerRef.current = setTimeout(() => {
+            if (!expanded && !dragRef.current) setTucked(true);
+        }, TUCK_DELAY);
+    }, [expanded]);
+
+    useEffect(() => {
+        if (mode === "orb" && !expanded && !hidden && player?.currentTrack && !player.floatDismissed) scheduleTuck();
+        else clearTuckTimer();
+        return () => clearTuckTimer();
+    }, [mode, expanded, hidden, player?.currentTrack?.id, player?.floatDismissed, scheduleTuck]);
 
     useEffect(() => () => {
-        if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+        clearTuckTimer();
+        if (retractTimerRef.current) clearTimeout(retractTimerRef.current);
     }, []);
 
-    const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    useEffect(() => {
+        let active = true;
+        const id = player?.currentTrack?.id.match(/^netease_(\d+)$/)?.[1];
+        setLiked(false);
+        setLikeMessage("");
+        if (id) getCloudSongLiked(Number(id)).then(value => { if (active) setLiked(value); });
+        return () => { active = false; };
+    }, [player?.currentTrack?.id]);
+
+    const toggleLike = async () => {
+        const id = player?.currentTrack?.id.match(/^netease_(\d+)$/)?.[1];
+        if (!id || likeBusy) return;
+        setLikeBusy(true);
+        setLikeMessage("");
+        const trackId = player?.currentTrack?.id;
+        const next = !liked;
+        const ok = await setCloudSongLiked(Number(id), next);
+        if (player?.currentTrack?.id === trackId) {
+            if (ok) setLiked(next);
+            else setLikeMessage("网易云登录状态或网络异常，红心未同步");
+        }
+        setLikeBusy(false);
+    };
+
+    const closeMusic = () => {
+        if (!player || closing) return;
+        setClosing(true);
+        setExpanded(false);
+        clearTuckTimer();
+        setTimeout(() => {
+            player.stop();
+            player.dismissFloat();
+            setClosing(false);
+        }, 220);
+    };
+
+    const beginDrag = (e: React.PointerEvent<HTMLElement>) => {
         const target = e.target as HTMLElement;
-        // Let transport buttons keep their native click behavior.
-        if (target.closest("button")) return;
-        e.preventDefault();
-        e.stopPropagation();
-        floatRef.current?.setPointerCapture?.(e.pointerId);
-        const now = performance.now();
-        dragRef.current = {
-            pointerId: e.pointerId,
-            active: true,
-            startX: e.clientX, startY: e.clientY,
-            origX: pos.x, origY: pos.y,
-            lastX: e.clientX,
-            lastTime: now,
-            lastLeftSpeed: 0,
-            lastLeftSpeedTime: 0,
-            moved: false,
-            startedOnInfo: Boolean(target.closest(".music-float-info")),
-        };
-    }, [pos]);
-
-    const handlePointerMove = useCallback((e: React.PointerEvent) => {
+        if (!target.closest(".mf-orb") || mode !== "orb") return;
+        const wasTucked = tucked;
+        setTucked(false);
+        clearTuckTimer();
+        dragRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, originX: pos.x, originY: pos.y, moved: false, wasTucked };
+        e.currentTarget.setPointerCapture(e.pointerId);
+    };
+    const moveDrag = (e: React.PointerEvent<HTMLElement>) => {
         const d = dragRef.current;
-        if (!d.active || d.pointerId !== e.pointerId) return;
-        const dx = e.clientX - d.startX;
-        const dy = e.clientY - d.startY;
-        if (Math.abs(dx) > DRAG_START_THRESHOLD || Math.abs(dy) > DRAG_START_THRESHOLD) d.moved = true;
-        if (d.moved) {
-            const nextPos = clampPos(d.origX + dx, d.origY + dy);
-            const now = performance.now();
-            const dt = Math.max(1, now - d.lastTime);
-            const stepDx = e.clientX - d.lastX;
-            const leftSpeed = stepDx < 0 ? Math.abs(stepDx) / dt : 0;
-            if (leftSpeed > 0) {
-                d.lastLeftSpeed = leftSpeed;
-                d.lastLeftSpeedTime = now;
-            }
-            d.lastX = e.clientX;
-            d.lastTime = now;
-            setPos(nextPos);
-        }
-    }, [clampPos]);
-
-    const finishPointer = useCallback((e: React.PointerEvent) => {
+        if (!d || d.pointerId !== e.pointerId) return;
+        const host = rootRef.current?.closest("[data-ui='phone-screen']") as HTMLElement | null;
+        const rect = host?.getBoundingClientRect();
+        const sx = host && rect ? rect.width / Math.max(1, host.clientWidth) : 1;
+        const sy = host && rect ? rect.height / Math.max(1, host.clientHeight) : 1;
+        const dx = (e.clientX - d.startX) / sx, dy = (e.clientY - d.startY) / sy;
+        if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) d.moved = true;
+        if (d.moved) setPos(clampPos(d.originX + dx, d.originY + dy));
+    };
+    const endDrag = (e: React.PointerEvent<HTMLElement>) => {
         const d = dragRef.current;
-        if (!d.active || d.pointerId !== e.pointerId) return;
-        if (floatRef.current?.hasPointerCapture?.(e.pointerId)) {
-            floatRef.current.releasePointerCapture(e.pointerId);
-        }
-        d.active = false;
-        d.pointerId = null;
-        const dx = e.clientX - d.startX;
-        const dy = e.clientY - d.startY;
-        const finalPos = clampPos(d.origX + dx, d.origY + dy);
-        const now = performance.now();
-        const dt = Math.max(1, now - d.lastTime);
-        const stepDx = e.clientX - d.lastX;
-        const leftSpeed = stepDx < 0 ? Math.abs(stepDx) / dt : 0;
-        const recentMoveSpeed = now - d.lastLeftSpeedTime <= SWIPE_VELOCITY_RECENT_MS ? d.lastLeftSpeed : 0;
-        const effectiveLeftSpeed = Math.max(leftSpeed, recentMoveSpeed);
-        const inertialX = finalPos.x - effectiveLeftSpeed * SWIPE_INERTIA_MS;
-        const shouldDismiss = d.moved
-            && finalPos.x <= SWIPE_DISMISS_ARMING_X
-            && effectiveLeftSpeed >= SWIPE_DISMISS_SPEED
-            && inertialX <= SWIPE_DISMISS_EDGE_X;
-
-        if (shouldDismiss) {
-            dismissFloat();
-            return;
-        }
-
+        if (!d || d.pointerId !== e.pointerId) return;
+        dragRef.current = null;
         if (d.moved) {
-            setPos(finalPos);
-            return;
+            suppressOrbClickRef.current = true;
+            requestAnimationFrame(() => { suppressOrbClickRef.current = false; });
+            setExpanded(false);
+            const host = rootRef.current?.closest("[data-ui='phone-screen']") as HTMLElement | null;
+            const rect = host?.getBoundingClientRect();
+            const sx = host && rect ? rect.width / Math.max(1, host.clientWidth) : 1;
+            const sy = host && rect ? rect.height / Math.max(1, host.clientHeight) : 1;
+            const p = clampPos(d.originX + (e.clientX - d.startX) / sx, d.originY + (e.clientY - d.startY) / sy);
+            const width = host?.clientWidth ?? 390;
+            const nextSide = p.x + 23 < width / 2 ? "left" : "right";
+            setSide(nextSide);
+            setPos({ ...p, x: nextSide === "left" ? EDGE_GAP : Math.max(EDGE_GAP, width - 46 - EDGE_GAP) });
+            scheduleTuck();
+        } else if (d.wasTucked) {
+            suppressOrbClickRef.current = true;
+            requestAnimationFrame(() => { suppressOrbClickRef.current = false; });
+            setTucked(false);
+            scheduleTuck();
         }
+    };
 
-        if (!d.moved && player) {
-            if (d.startedOnInfo) {
-                player.openFullPlayer();
-                return;
-            }
+    const retractIsland = () => {
+        if (retracting) return;
+        setRetracting(true);
+        if (retractTimerRef.current) clearTimeout(retractTimerRef.current);
+        retractTimerRef.current = setTimeout(() => {
+            setExpanded(false);
+            setRetracting(false);
+        }, RETRACT_MS);
+    };
 
-            setExpanded(prev => {
-                requestAnimationFrame(() => setPos(p => clampPos(p.x, p.y)));
-                return !prev;
-            });
-        }
-    }, [player, clampPos, dismissFloat]);
-
-    const handlePointerUp = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
-    const handlePointerCancel = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
-
-    if (!player || !player.currentTrack || hidden || player.floatDismissed) return null;
-
+    if (!player?.currentTrack || hidden || player.floatDismissed) return null;
     const track = player.currentTrack;
+    const songId = track.id.match(/^netease_(\d+)$/)?.[1];
+
+    if (mode === "island") {
+        return (
+            <div className="music-float-v2-island">
+                {!expanded ? (
+                    <button className="mf-island" aria-label="展开音乐灵动岛" onClick={() => setExpanded(true)}>
+                        <span className="mf-cover">{track.coverUrl ? <img src={track.coverUrl} alt="" /> : "♫"}</span>
+                        <span className="mf-island-title">{track.title}</span>
+                        <span className="mf-wave" data-playing={player.isPlaying ? "" : undefined}><i /><i /><i /><i /></span>
+                    </button>
+                ) : (
+                    <>
+                        <button className="mf-backdrop" aria-label="收起灵动岛" onClick={retractIsland} />
+                        <section className="mf-island-card" data-retracting={retracting ? "" : undefined} onClick={() => { if (!retracting) player.openFullPlayer(); }}>
+                            <header><span>正在播放</span><button onClick={e => { e.stopPropagation(); closeMusic(); }}>关闭</button></header>
+                            <div className="mf-island-track">{track.coverUrl ? <img src={track.coverUrl} alt="" /> : <span>♫</span>}<div><strong>{track.title}</strong><small>{track.artist}</small></div></div>
+                            <input aria-label="歌曲播放进度" type="range" min={0} max={Math.max(0, player.duration || 0)} step={0.1} value={player.duration > 0 ? Math.min(player.currentTime, player.duration) : 0} disabled={player.duration <= 0} onClick={e => e.stopPropagation()} onChange={e => player.seek(Number(e.target.value))} />
+                            <nav>
+                                <button onClick={e => { e.stopPropagation(); window.dispatchEvent(new CustomEvent("music-desktop-lyrics-toggle")); }}>词</button>
+                                <button onClick={e => { e.stopPropagation(); player.prev(); }}>上一首</button>
+                                <button onClick={e => { e.stopPropagation(); player.togglePlay(); }}>{player.isPlaying ? "暂停" : "播放"}</button>
+                                <button onClick={e => { e.stopPropagation(); player.next(); }}>下一首</button>
+                                <button disabled={!songId || likeBusy} onClick={e => { e.stopPropagation(); void toggleLike(); }} aria-label="网易云红心">{liked ? "♥" : "♡"}</button>
+                            </nav>
+                            {likeMessage && <small role="status">{likeMessage}</small>}
+                        </section>
+                    </>
+                )}
+            </div>
+        );
+    }
 
     return (
         <div
-            ref={floatRef}
-            className="music-float"
-            {...(expanded ? { "data-expanded": "" } : {})}
-            {...(dismissing ? { "data-dismissing": "" } : {})}
+            ref={rootRef}
+            className="music-float-v2 music-float-v2-orb"
+            data-side={side}
+            data-expanded={expanded ? "" : undefined}
+            data-tucked={tucked ? "" : undefined}
+            data-closing={closing ? "" : undefined}
             style={{ left: pos.x, top: pos.y }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerCancel}
+            onPointerDown={beginDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
         >
-            <div className="music-float-inner">
-                {/* Cover art */}
-                <div className="music-float-cover-wrap" {...(player.isPlaying ? { "data-playing": "" } : {})}>
-                    <div className="music-float-vinyl-groove music-float-vinyl-groove-1" />
-                    <div className="music-float-vinyl-groove music-float-vinyl-groove-2" />
-                    <div className="music-float-vinyl-center">
-                        {track.coverUrl ? (
-                            <img src={track.coverUrl} alt="" className="music-float-cover-img" draggable={false} />
-                        ) : (
-                            <div className="music-float-cover-placeholder">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                    <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-                                </svg>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Track Info */}
-                <div className="music-float-info">
-                    <div className="music-float-title">{track.title}</div>
-                    <div className="music-float-artist">{track.artist}</div>
-                </div>
-
-                {/* Compact Controls */}
-                <div className="music-float-controls">
-                    <button className="music-float-btn" onClick={(e) => { e.stopPropagation(); player.prev(); }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
-                        </svg>
-                    </button>
-                    <button className="music-float-btn music-float-btn-play" onClick={(e) => { e.stopPropagation(); player.togglePlay(); }}>
-                        {player.isPlaying ? (
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M6 4h4v16H6zm8 0h4v16h-4z" />
-                            </svg>
-                        ) : (
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M8 5v14l11-7z" />
-                            </svg>
-                        )}
-                    </button>
-                    <button className="music-float-btn" onClick={(e) => { e.stopPropagation(); player.next(); }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M6 18l8.5-6L6 6v12zm8.5 0h2V6h-2v12z" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
+            <button className="mf-orb" aria-label="展开音乐悬浮球" onClick={() => { if (!suppressOrbClickRef.current && !tucked) setExpanded(value => !value); }}>
+                {track.coverUrl ? <img src={track.coverUrl} alt="" draggable={false} /> : <span>♫</span>}
+                <i data-playing={player.isPlaying ? "" : undefined} />
+            </button>
+            {expanded && (
+                <>
+                    <section className="mf-orb-card">
+                        <div className="mf-orb-track"><button className="mf-orb-cover" aria-label="打开完整播放器" onClick={() => player.openFullPlayer()}>{track.coverUrl ? <img src={track.coverUrl} alt="" /> : <span>♫</span>}</button><div><strong>{track.title}</strong><small>{track.artist}</small></div><span className="mf-card-wave" data-playing={player.isPlaying ? "" : undefined}><i /><i /><i /><i /></span></div>
+                        <input aria-label="歌曲播放进度" type="range" min={0} max={Math.max(1, player.duration || 1)} step={0.1} value={Math.min(player.currentTime, Math.max(1, player.duration || 1))} onClick={e => e.stopPropagation()} onChange={e => player.seek(Number(e.target.value))} />
+                        <nav>
+                            <button onClick={e => { e.stopPropagation(); player.prev(); }}>上一首</button>
+                            <button onClick={e => { e.stopPropagation(); player.togglePlay(); }}>{player.isPlaying ? "暂停" : "播放"}</button>
+                            <button onClick={e => { e.stopPropagation(); player.next(); }}>下一首</button>
+                        </nav>
+                    </section>
+                    <button className="mf-orb-close" aria-label="关闭音乐" onClick={e => { e.stopPropagation(); closeMusic(); }}>关闭</button>
+                </>
+            )}
         </div>
     );
 }
