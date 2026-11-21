@@ -2,8 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useMusicPlayerOptional } from "@/lib/music-context";
-import { loadMusicFloatAppearance, saveMusicFloatAppearance, MUSIC_FLOAT_APPEARANCE_EVENT, MUSIC_FLOAT_COLORS } from "@/lib/music-bg";
+import { useMusicControlsOptional } from "@/lib/music-context";
 
 const DRAG_START_THRESHOLD = 6;
 const SWIPE_DISMISS_EDGE_X = 4;
@@ -13,7 +12,7 @@ const SWIPE_INERTIA_MS = 140;
 const SWIPE_VELOCITY_RECENT_MS = 180;
 
 export default function MusicFloat({ hidden }: { hidden?: boolean }) {
-    const player = useMusicPlayerOptional();
+    const player = useMusicControlsOptional();
     const floatRef = useRef<HTMLDivElement>(null);
     const [pos, setPos] = useState({ x: 310, y: 680 });
     const dragRef = useRef<{
@@ -39,13 +38,6 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
     const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [expanded, setExpanded] = useState(false);
     const [dismissing, setDismissing] = useState(false);
-    const [appearance, setAppearance] = useState(() => loadMusicFloatAppearance());
-
-    useEffect(() => {
-        const refresh = () => setAppearance(loadMusicFloatAppearance());
-        window.addEventListener(MUSIC_FLOAT_APPEARANCE_EVENT, refresh);
-        return () => window.removeEventListener(MUSIC_FLOAT_APPEARANCE_EVENT, refresh);
-    }, []);
 
     const clampPos = useCallback((x: number, y: number) => {
         const el = floatRef.current;
@@ -80,7 +72,7 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
     const handlePointerDown = useCallback((e: React.PointerEvent) => {
         const target = e.target as HTMLElement;
         // Let transport buttons keep their native click behavior.
-        if (target.closest("button, input")) return;
+        if (target.closest("button")) return;
         e.preventDefault();
         e.stopPropagation();
         floatRef.current?.setPointerCapture?.(e.pointerId);
@@ -170,27 +162,17 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
     const handlePointerUp = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
     const handlePointerCancel = useCallback((e: React.PointerEvent) => finishPointer(e), [finishPointer]);
 
-    if (!player || !player.currentTrack || hidden || player.floatDismissed || !appearance.enabled) return null;
+    if (!player || !player.currentTrack || hidden || player.floatDismissed) return null;
 
     const track = player.currentTrack;
-    const floatSize = appearance.size ?? 72;
-    const hideFromFloat = () => {
-        const next = { ...appearance, enabled: false };
-        const result = saveMusicFloatAppearance(next);
-        if (result.ok) setAppearance(next);
-    };
 
     return (
         <div
             ref={floatRef}
             className="music-float"
-            data-float-color={appearance.color}
-            data-card-style={appearance.cardStyle}
-            data-float-shape={appearance.shape}
-            {...(appearance.image ? { "data-custom-image": "" } : {})}
             {...(expanded ? { "data-expanded": "" } : {})}
             {...(dismissing ? { "data-dismissing": "" } : {})}
-            style={{ left: 0, top: 0, translate: `${pos.x}px ${pos.y}px`, "--music-float-size": `${floatSize}px`, "--music-float-accent": MUSIC_FLOAT_COLORS.find(item => item.id === appearance.color)?.value || "#9b8cff" } as React.CSSProperties}
+            style={{ left: pos.x, top: pos.y }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -202,9 +184,7 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
                     <div className="music-float-vinyl-groove music-float-vinyl-groove-1" />
                     <div className="music-float-vinyl-groove music-float-vinyl-groove-2" />
                     <div className="music-float-vinyl-center">
-                        {appearance.image ? (
-                            <img src={appearance.image} alt="" className="music-float-cover-img" draggable={false} />
-                        ) : track.coverUrl ? (
+                        {track.coverUrl ? (
                             <img src={track.coverUrl} alt="" className="music-float-cover-img" draggable={false} />
                         ) : (
                             <div className="music-float-cover-placeholder">
@@ -240,29 +220,13 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
                             </svg>
                         )}
                     </button>
-                    <button className="music-float-btn" onClick={(e) => { e.stopPropagation(); player.next(); }} aria-label="下一首">
+                    <button className="music-float-btn" onClick={(e) => { e.stopPropagation(); player.next(); }}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M6 18l8.5-6L6 6v12zm8.5 0h2V6h-2v12z" />
                         </svg>
                     </button>
-                    <button className="music-float-btn music-float-hide-btn" onClick={(e) => { e.stopPropagation(); hideFromFloat(); }} aria-label="隐藏悬浮球" title="隐藏悬浮球">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
-                    </button>
                 </div>
             </div>
-            {expanded && (
-                <div className="music-float-progress" onPointerDown={event => event.stopPropagation()}>
-                    <input
-                        type="range"
-                        min={0}
-                        max={Math.max(1, player.duration || 1)}
-                        step={0.1}
-                        value={Math.min(player.currentTime, Math.max(1, player.duration || 1))}
-                        onChange={event => player.seek(Number(event.target.value))}
-                        aria-label="歌曲播放进度"
-                    />
-                </div>
-            )}
         </div>
     );
 }

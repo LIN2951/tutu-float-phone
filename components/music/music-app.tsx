@@ -29,8 +29,6 @@ import MusicCommentsPage from "./music-comments";
 import {
     loadMusicBg, saveMusicBg, clearMusicBg, fileToCompressedDataUrl, appBgStyle,
     MUSIC_BG_EVENT, type MusicBgConfig, type MusicPlayerBgMode,
-    loadMusicFloatAppearance, saveMusicFloatAppearance, MUSIC_FLOAT_COLORS, MUSIC_FLOAT_CARD_STYLES, MUSIC_FLOAT_SHAPES,
-    type MusicFloatAppearance,
 } from "@/lib/music-bg";
 
 type Props = { onClose: () => void };
@@ -1524,24 +1522,6 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
     });
     const bgFileRef = useRef<HTMLInputElement>(null);
     const playerFileRef = useRef<HTMLInputElement>(null);
-    const [floatAppearance, setFloatAppearance] = useState<MusicFloatAppearance>(() => loadMusicFloatAppearance());
-    const [floatMsg, setFloatMsg] = useState<string | null>(null);
-    const floatImageRef = useRef<HTMLInputElement>(null);
-    const applyFloatAppearance = (next: MusicFloatAppearance) => {
-        const result = saveMusicFloatAppearance(next);
-        if (result.ok) setFloatAppearance(next);
-        setFloatMsg(result.ok ? null : result.message);
-    };
-    const handleFloatImage = async (file: File | undefined) => {
-        if (!file) return;
-        try {
-            const image = await fileToCompressedDataUrl(file, 512, 0.78);
-            applyFloatAppearance({ ...floatAppearance, image });
-        } catch (error) {
-            setFloatMsg(error instanceof Error ? error.message : "图片处理失败");
-        }
-        if (floatImageRef.current) floatImageRef.current.value = "";
-    };
 
     const applyBg = (next: MusicBgConfig) => {
         const result = saveMusicBg(next);
@@ -1861,62 +1841,6 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
                         </div>
                     )}
                     {bgMsg && <div className="music-qr-status">{bgMsg}</div>}
-                </div>
-
-                <div className="music-settings-section music-qr-section">
-                    <div className="music-settings-label">后台悬浮球</div>
-                    <div className="music-settings-hint">独立控制悬浮球显示；隐藏不会暂停或清除正在播放的歌曲</div>
-                    <div className="music-settings-actions">
-                        <button className="music-settings-btn" {...(floatAppearance.enabled ? { "data-on": "" } : {})} onClick={() => applyFloatAppearance({ ...floatAppearance, enabled: true })}>显示悬浮球</button>
-                        <button className="music-settings-btn" {...(!floatAppearance.enabled ? { "data-on": "" } : {})} onClick={() => applyFloatAppearance({ ...floatAppearance, enabled: false })}>隐藏悬浮球</button>
-                    </div>
-
-                    <div className="music-settings-label" style={{ marginTop: 14 }}>悬浮球大小 · {floatAppearance.size ?? 72}px</div>
-                    <input
-                        className="music-settings-input"
-                        type="range"
-                        min={48}
-                        max={112}
-                        step={4}
-                        value={floatAppearance.size ?? 72}
-                        onChange={event => applyFloatAppearance({ ...floatAppearance, size: Number(event.target.value) })}
-                        aria-label="调整悬浮球大小"
-                    />
-
-                    <div className="music-settings-label" style={{ marginTop: 14 }}>悬浮球颜色</div>
-                    <div className="music-float-choice-grid">
-                        {MUSIC_FLOAT_COLORS.map(color => (
-                            <button key={color.id} className="music-float-color-choice" data-selected={floatAppearance.color === color.id ? "" : undefined}
-                                onClick={() => applyFloatAppearance({ ...floatAppearance, color: color.id })}>
-                                <i style={{ background: color.value }} />{color.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="music-settings-label" style={{ marginTop: 14 }}>悬浮卡片风格</div>
-                    <div className="music-float-choice-grid">
-                        {MUSIC_FLOAT_CARD_STYLES.map(style => (
-                            <button key={style.id} className="music-settings-btn" data-on={floatAppearance.cardStyle === style.id ? "" : undefined}
-                                onClick={() => applyFloatAppearance({ ...floatAppearance, cardStyle: style.id })}>{style.label}</button>
-                        ))}
-                    </div>
-
-                    <div className="music-settings-label" style={{ marginTop: 14 }}>悬浮球样式</div>
-                    <div className="music-float-choice-grid">
-                        {MUSIC_FLOAT_SHAPES.map(shape => (
-                            <button key={shape.id} className="music-settings-btn" data-on={floatAppearance.shape === shape.id ? "" : undefined}
-                                onClick={() => applyFloatAppearance({ ...floatAppearance, shape: shape.id })}>{shape.label}</button>
-                        ))}
-                    </div>
-
-                    <div className="music-settings-label" style={{ marginTop: 14 }}>自定义悬浮球图片</div>
-                    {floatAppearance.image && <div className="music-float-image-preview"><img src={floatAppearance.image} alt="悬浮球自定义图片预览" /></div>}
-                    <input ref={floatImageRef} type="file" accept="image/*" hidden onChange={e => { void handleFloatImage(e.target.files?.[0]); }} />
-                    <div className="music-settings-actions" style={{ marginTop: 8 }}>
-                        <button className="music-settings-btn" onClick={() => floatImageRef.current?.click()}>上传图片</button>
-                        {floatAppearance.image && <button className="music-settings-btn" onClick={() => applyFloatAppearance({ ...floatAppearance, image: "" })}>恢复歌曲封面</button>}
-                    </div>
-                    {floatMsg && <div className="music-qr-status">{floatMsg}</div>}
                 </div>
             </div>
         </div>
