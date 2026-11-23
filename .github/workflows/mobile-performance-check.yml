@@ -7,6 +7,7 @@ on:
     paths:
       - "components/desktop-shell.tsx"
       - "components/chat/phone-chat-app.tsx"
+      - "components/chat/chat-room.tsx"
       - "components/ui/session-custom-css.tsx"
       - "vite.mobile.config.mjs"
       - "mobile/**"
