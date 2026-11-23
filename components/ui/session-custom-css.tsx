@@ -11,8 +11,8 @@ import { extractCssImports, scopeSessionCSS } from "@/lib/css-scoper";
  * 加载/重试期间会挂起整张样式表，网络不通时页面会在有 CSS/无 CSS 之间反复闪烁
  * （剧情模式拉到顶/底时最明显）。
  *
- * <link> 带 precedence 属性由 React 19 提升进 <head> 并按 href 去重，跨重渲染
- * 保持稳定；字体加载失败只缺字体，不影响其余自定义样式。
+ * 外部样式链接由组件自行创建并在 CSS 替换/组件卸载时清理，避免旧美化的
+ * @import 样式表残留；字体加载失败只影响字体本身，不会挂起其余自定义样式。
  */
 export function SessionCustomCSS({ css, scope }: { css: string; scope: string }) {
     const { imports, body } = useMemo(() => {
