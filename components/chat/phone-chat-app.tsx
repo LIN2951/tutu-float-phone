@@ -4,11 +4,11 @@ import {useAppBack} from "@/lib/back-navigation";
 import { CHAT_APPEARANCE_OPEN, loadChatNightMode, saveChatNightMode } from "@/lib/chat-appearance";
 import "@/styles/chat-night.css";
 
-import { memo, useState, useEffect, useRef } from "react";
+import { memo, lazy, Suspense, useState, useEffect, useRef } from "react";
 import { ChatMessageList } from "./chat-message-list";
 import { ChatContactsList } from "./chat-contacts-list";
 import { MomentsFeed } from "./moments-feed";
-import { ChatRoom } from "./chat-room";
+const ChatRoom = lazy(() => import("./chat-room").then(module => ({ default: module.ChatRoom })));
 import { MascotChatRoom } from "./mascot-chat-room";
 import { UserProfilePanel } from "./user-profile-panel";
 import { ChatSession, loadChatSessions, pushChatMessage, hydrateChatStorage, markChatSessionRead, setActiveChatSessionId } from "@/lib/chat-storage";
@@ -70,6 +70,12 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
     useEffect(() => {
         if (!activeSession && !activeMascot && activeTab === "messages") setHideTabBar(false);
     }, [activeSession, activeMascot, activeTab]);
+
+    // Warm the heavy chat-room bundle while the user is viewing the contacts/messages
+    // tabs, rather than making the first character tap pay the full download/parse cost.
+    useEffect(() => {
+        void import("./chat-room");
+    }, []);
 
     // Hydrate IndexedDB → in-memory caches on mount
     useEffect(() => {
@@ -363,19 +369,21 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
             {/* Chat Rooms — all visited sessions stay mounted, only active one is visible */}
             {[...visitedSessions.values()].map(sess => (
                 <div key={sess.id} style={{ display: activeSession?.id === sess.id ? undefined : 'none' }} className="chat-room-layer absolute inset-0">
-                    <ChatRoom
-                        session={sess}
-                        onBack={() => setActiveSession(null)}
-                        onDeleted={() => {
-                            // 会话已删除：把缓存的聊天室一并卸载，避免僵尸挂载
-                            setVisitedSessions(prev => {
-                                const next = new Map(prev);
-                                next.delete(sess.id);
-                                return next;
-                            });
-                            setActiveSession(null);
-                        }}
-                    />
+                    <Suspense fallback={<div className="flex h-full w-full items-center justify-center text-[var(--c-sub)] text-sm">正在打开聊天…</div>}>
+                        <ChatRoom
+                            session={sess}
+                            onBack={() => setActiveSession(null)}
+                            onDeleted={() => {
+                                // 会话已删除：把缓存的聊天室一并卸载，避免僵尸挂载
+                                setVisitedSessions(prev => {
+                                    const next = new Map(prev);
+                                    next.delete(sess.id);
+                                    return next;
+                                });
+                                setActiveSession(null);
+                            }}
+                        />
+                    </Suspense>
                 </div>
             ))}
             {activeMascot && (
