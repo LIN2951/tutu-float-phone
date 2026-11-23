@@ -177,6 +177,12 @@ import type { ChatSharePayload } from "@/lib/chat-share";
 import { completePendingMcpOAuthCallback } from "@/lib/tool-executor";
 import { LayoutGrid, LoaderCircle, RefreshCw } from "lucide-react";
 
+const AppChunkFallback = () => (
+  <div className="phone-app-loading" style={{ minHeight: "100%", display: "grid", placeItems: "center" }} aria-label="正在打开应用">
+    <LoaderCircle size={18} />
+  </div>
+);
+
 const EMOJI_FONTS = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla"';
 
 const ICON_LAYOUT_STORAGE_KEY = "ai_phone_icon_layout_v2";
@@ -4994,12 +5000,12 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                 ) : (
                   <>
                     <section className="phone-app-pane" style={activeApp === "chat" || activeApp === "weverse" || activeApp === "dwelling" || activeApp === "xiaohongshu" || activeApp === "shopping" || activeApp === "theqoo" || activeApp === toCustomAppIconId("theqoo.float.forum") ? { display: "none" } : undefined}>
-                      <Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}>{renderAppBody()}</Suspense>
+                      <Suspense fallback={<AppChunkFallback />}>{renderAppBody()}</Suspense>
                     </section>
                     {/* DwellingApp stays mounted while generating — auto-unmounts when idle */}
                     {dwellingMounted && (
                       <section className="phone-app-pane" style={activeApp !== "dwelling" ? { display: "none" } : undefined}>
-                        <Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}>
+                        <Suspense fallback={<AppChunkFallback />}>
                         <DwellingApp
                           onClose={() => setActiveApp(null)}
                           visible={activeApp === "dwelling"}
@@ -5011,10 +5017,10 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                   </>
                 )}
                 {(chatVisited||activeApp==="chat")&&<section className="phone-app-pane" style={activeApp!=="chat"?{display:"none"}:undefined}><PhoneChatApp onClose={()=>{setActiveApp(null);setActiveChatSession(null);setChatInitSessionId(null);}} initialSessionId={chatInitSessionId} onSessionChange={setActiveChatSession}/></section>}
-                {(wvsVisited||activeApp==="weverse")&&<section className="phone-app-pane" style={activeApp!=="weverse"?{display:"none"}:undefined}><Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}><WeverseApp visible={activeApp==="weverse"} onClose={()=>setActiveApp(null)} onNotice={setNotice}/></Suspense></section>}
+                {(wvsVisited||activeApp==="weverse")&&<section className="phone-app-pane" style={activeApp!=="weverse"?{display:"none"}:undefined}><Suspense fallback={<AppChunkFallback />}><WeverseApp visible={activeApp==="weverse"} onClose={()=>setActiveApp(null)} onNotice={setNotice}/></Suspense></section>}
                 {xiaohongshuMounted && (
                   <section className="phone-app-pane" style={activeApp !== "xiaohongshu" ? { display: "none" } : undefined}>
-                    <Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}>
+                    <Suspense fallback={<AppChunkFallback />}>
                     <XiaohongshuApp
                       onClose={handleCloseXiaohongshu}
                       onNotice={setNotice}
@@ -5032,7 +5038,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                 )}
                 {shoppingMounted && (
                   <section className="phone-app-pane" style={activeApp !== "shopping" ? { display: "none" } : undefined}>
-                    <Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}>
+                    <Suspense fallback={<AppChunkFallback />}>
                     <ShoppingApp
                       onClose={handleCloseShopping}
                       visible={activeApp === "shopping"}
@@ -5049,7 +5055,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                 )}
                 {theqooMounted && (
                   <section className="phone-app-pane" style={activeApp !== "theqoo" ? { display: "none" } : undefined}>
-                    <Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}>
+                    <Suspense fallback={<AppChunkFallback />}>
                     <TheqooApp
                       onClose={handleCloseTheqoo}
                       onNotice={setNotice}
