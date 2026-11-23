@@ -55,7 +55,21 @@ type ChatContactsListProps = {
 const PROFILE_UPDATE_DISPLAY_MS = 2 * 60 * 60 * 1000;
 
 export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, onOpenMoments, pendingAddContactId, onPendingAddContactConsumed, onPendingAddContactBack }: ChatContactsListProps) {
-    const [contacts, setContacts] = useState<(ChatContact & { char?: Character })[]>([]);
+    // The chat app waits for IndexedDB hydration before mounting this page, so its
+    // cached contacts can be rendered immediately instead of showing an empty list
+    // until the first passive effect runs.
+    const chars = useMemo(() => loadCharacters(), []);
+    const [contacts, setContacts] = useState<(ChatContact & { char?: Character })[]>(() => {
+        try {
+            const byId = new Map(chars.map(character => [character.id, character]));
+            return loadChatContacts()
+                .map(contact => ({ ...contact, char: byId.get(contact.characterId) }))
+                .filter((contact): contact is ChatContact & { char: Character } => !!contact.char)
+                .sort((a, b) => resolveChatCharacterDisplayName(a.char).localeCompare(resolveChatCharacterDisplayName(b.char)));
+        } catch {
+            return [];
+        }
+    });
     const [contactFilter, setContactFilter] = useState("");
     const [showContactSearch, setShowContactSearch] = useState(false);
     const contactSearchRef = useRef<HTMLInputElement>(null);
@@ -83,7 +97,6 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
     const [mascotAvatarUrl, setMascotAvatarUrl] = useState(mascotSettings.avatarImage || DEFAULT_MASCOT_AVATAR);
 
     const identity = useMemo(() => resolveUserIdentity(), []);
-    const chars = useMemo(() => loadCharacters(), []);
     const deferredContactFilter = useDeferredValue(contactFilter);
     const bodyRef = useRef<HTMLDivElement>(null);
 
