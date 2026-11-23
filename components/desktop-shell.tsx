@@ -1452,9 +1452,10 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
     startX: number;
     startY: number;
     deltaX: number;
+    pageWidth: number;
     locked: "x" | "y" | null;
     pointerId: number | null;
-  }>({ startX: 0, startY: 0, deltaX: 0, locked: null, pointerId: null });
+  }>({ startX: 0, startY: 0, deltaX: 0, pageWidth: 0, locked: null, pointerId: null });
   const swipeLayerRef = useRef<HTMLDivElement | null>(null);
 
   // ── Edit mode (long-press drag) ──
@@ -3934,11 +3935,12 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
     s.startX = e.clientX;
     s.startY = e.clientY;
     s.deltaX = 0;
+    s.pageWidth = getSwipePageWidth();
     s.locked = null;
     s.pointerId = e.pointerId;
     // Suppress the settle transition for 1:1 finger tracking while dragging.
     swipeLayerRef.current?.classList.add("phone-swipe-dragging");
-  }, [activeApp, editMode]);
+  }, [activeApp, editMode, getSwipePageWidth]);
 
   // ── 状态栏颜色自适应：检测当前背景亮度 ──
   useEffect(() => {
@@ -4039,7 +4041,9 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
     // Compute the pixel position from the committed page + finger delta, with
     // rubber-banding past the first/last page, then express it as an offset from
     // the current page's base (= the --swipe-drag CSS var).
-    const pageWidth = getSwipePageWidth();
+    // Width is measured once on pointer-down. Reading layout on every move
+    // forces synchronous WebView layout and makes Android swipes stutter.
+    const pageWidth = s.pageWidth || 390;
     const page = currentPageIndexRef.current;
     let translateX = -page * pageWidth + dx;
     const minTranslateX = -Math.max(0, pageCount - 1) * pageWidth;
@@ -4048,7 +4052,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
 
     s.deltaX = dx;
     setSwipeDrag(translateX + page * pageWidth);
-  }, [editMode, getSwipePageWidth, pageCount, setSwipeDrag]);
+  }, [editMode, pageCount, setSwipeDrag]);
 
   const handleSwipeEnd = useCallback((e: React.PointerEvent) => {
     // Clear long-press
@@ -4084,7 +4088,8 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
 
     const dx = s.deltaX;
     s.deltaX = 0;
-    const pageWidth = getSwipePageWidth();
+    const pageWidth = s.pageWidth || 390;
+    s.pageWidth = 0;
     const swipeThreshold = Math.max(SWIPE_MIN_THRESHOLD, pageWidth * SWIPE_THRESHOLD_RATIO);
 
     const page = currentPageIndexRef.current;
@@ -4098,7 +4103,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
     swipeLayerRef.current?.classList.remove("phone-swipe-dragging");
     setSwipeDrag(0);
     if (targetPageIndex !== page) setCurrentPageIndex(targetPageIndex);
-  }, [editMode, getSwipePageWidth, pageCount, setSwipeDrag]);
+  }, [editMode, pageCount, setSwipeDrag]);
 
   const handleCloseXiaohongshu = useCallback((isBusy?: boolean) => {
     const shouldKeepMounted = isBusy ?? xiaohongshuBusy;
