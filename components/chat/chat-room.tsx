@@ -931,13 +931,8 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
                     e.target.style.height = "auto";
                     e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
                 }}
-                onFocus={(e) => {
-                    if (panelOpen) {
-                        e.target.blur();
-                        onClosePanels();
-                        const target = e.target as HTMLTextAreaElement;
-                        requestAnimationFrame(() => requestAnimationFrame(() => target.focus()));
-                    }
+                onFocus={() => {
+                    if (panelOpen) onClosePanels();
                     setSuggestClosed(false);
                 }}
                 onBlur={() => setSuggestClosed(true)}
@@ -1162,13 +1157,8 @@ const LegacyOfflineTextInputBar = memo(forwardRef<OfflineTextInputHandle, {
                     e.target.style.height = "auto";
                     e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
                 }}
-                onFocus={(e) => {
-                    if (showEmojiPanel) {
-                        e.target.blur();
-                        onCloseEmojiPanel();
-                        const target = e.target as HTMLTextAreaElement;
-                        requestAnimationFrame(() => requestAnimationFrame(() => target.focus()));
-                    }
+                onFocus={() => {
+                    if (showEmojiPanel) onCloseEmojiPanel();
                 }}
                 onKeyDown={e => {
                     if (shouldSendChatInputOnEnter(e, enterToSendEnabled)) {
