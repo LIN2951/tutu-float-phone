@@ -50,7 +50,7 @@ jobs:
 
       - name: Build Android debug APK
         working-directory: android
-        run: ./gradlew :app:assembleDebug --no-daemon
+        run: bash ./gradlew :app:assembleDebug --no-daemon
 
       - name: Upload debug APK for validation
         uses: actions/upload-artifact@v4

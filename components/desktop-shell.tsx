@@ -39,7 +39,7 @@ const QuestionBoxApp = lazy(() => import("@/components/question-box/question-box
 import { maybeGenerateLysnBackgroundMessage } from "@/lib/lysn-background";
 import { maybeGenerateSmsBackgroundMessage } from "@/lib/sms-background";
 const PhoneSettingsApp = lazy(() => import("@/components/phone-settings-app").then(m => ({ default: m.PhoneSettingsApp })));
-import { PhoneChatApp } from "@/components/chat/phone-chat-app";
+const PhoneChatApp = lazy(() => import("@/components/chat/phone-chat-app").then(m => ({ default: m.PhoneChatApp })));
 import { PhonePlaceholderApp } from "@/components/phone-placeholder-app";
 import MusicApp from "@/components/music/music-app";
 import MusicPlayer from "@/components/music/music-player";
@@ -4744,6 +4744,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                 onClose={handleMiniChatClose}
                 onExpand={handleMiniChatExpand}
               >
+                <Suspense fallback={<AppChunkFallback />}>
                 <PhoneChatApp
                   key={miniShareSession?.request ?? 0}
                   initialSessionId={miniShareSession?.id}
@@ -4752,6 +4753,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                   sharePayload={miniSharePayload}
                   onShareDone={handleMiniShareDone}
                 />
+                </Suspense>
               </MiniAppWindow>
 
               <div
@@ -5016,7 +5018,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                     )}
                   </>
                 )}
-                {(chatVisited||activeApp==="chat")&&<section className="phone-app-pane" style={activeApp!=="chat"?{display:"none"}:undefined}><PhoneChatApp onClose={()=>{setActiveApp(null);setActiveChatSession(null);setChatInitSessionId(null);}} initialSessionId={chatInitSessionId} onSessionChange={setActiveChatSession}/></section>}
+                {(chatVisited||activeApp==="chat")&&<section className="phone-app-pane" style={activeApp!=="chat"?{display:"none"}:undefined}><Suspense fallback={<AppChunkFallback />}><PhoneChatApp onClose={()=>{setActiveApp(null);setActiveChatSession(null);setChatInitSessionId(null);}} initialSessionId={chatInitSessionId} onSessionChange={setActiveChatSession}/></Suspense></section>}
                 {(wvsVisited||activeApp==="weverse")&&<section className="phone-app-pane" style={activeApp!=="weverse"?{display:"none"}:undefined}><Suspense fallback={<AppChunkFallback />}><WeverseApp visible={activeApp==="weverse"} onClose={()=>setActiveApp(null)} onNotice={setNotice}/></Suspense></section>}
                 {xiaohongshuMounted && (
                   <section className="phone-app-pane" style={activeApp !== "xiaohongshu" ? { display: "none" } : undefined}>
