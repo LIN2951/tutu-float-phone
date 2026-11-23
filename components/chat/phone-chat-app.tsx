@@ -33,13 +33,16 @@ export type PhoneChatAppProps = {
 
 export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSessionId, onSessionChange, sharePayload, onShareDone }: PhoneChatAppProps) {
     const appRoot=useRef<HTMLDivElement>(null);
-    useAppBack(()=>{if(activeSession){setActiveSession(null);setActiveTab("messages");}else if(appearanceOpen)setAppearanceOpen(false);else onClose();},()=>!!appRoot.current?.getClientRects().length,15);
-    useEffect(()=>{const fn=(event:Event)=>{const d=(event as CustomEvent).detail||{};if(d.app!=='chat'||!appRoot.current?.getClientRects().length)return;if(d.view==='thread'&&d.sessionId){const session=loadChatSessions().find(s=>s.id===d.sessionId);if(session){setActiveSession(session);setActiveTab('messages');}}else{setActiveSession(null);setActiveTab(d.view==='feeds'?'feeds':d.view==='contacts'?'contacts':'messages');}};window.addEventListener('rabbit-reverse-page',fn);if(reversePageIntent())fn(new CustomEvent('rabbit-reverse-page',{detail:reversePageIntent()}));return()=>window.removeEventListener('rabbit-reverse-page',fn);},[]);
-    useEffect(()=>{const share=()=>{if(!appRoot.current?.getClientRects().length)return;setActiveSession(null);setActiveTab('feeds');};window.addEventListener('chat-screenshot-to-moments',share);return()=>window.removeEventListener('chat-screenshot-to-moments',share);},[]);
+    useAppBack(()=>{if(activeSession){setActiveSession(null);switchTab("messages");}else if(appearanceOpen)setAppearanceOpen(false);else onClose();},()=>!!appRoot.current?.getClientRects().length,15);
+    useEffect(()=>{const fn=(event:Event)=>{const d=(event as CustomEvent).detail||{};if(d.app!=='chat'||!appRoot.current?.getClientRects().length)return;if(d.view==='thread'&&d.sessionId){const session=loadChatSessions().find(s=>s.id===d.sessionId);if(session){setActiveSession(session);switchTab('messages');}}else{setActiveSession(null);switchTab(d.view==='feeds'?'feeds':d.view==='contacts'?'contacts':'messages');}};window.addEventListener('rabbit-reverse-page',fn);if(reversePageIntent())fn(new CustomEvent('rabbit-reverse-page',{detail:reversePageIntent()}));return()=>window.removeEventListener('rabbit-reverse-page',fn);},[]);
+    useEffect(()=>{const share=()=>{if(!appRoot.current?.getClientRects().length)return;setActiveSession(null);switchTab('feeds');};window.addEventListener('chat-screenshot-to-moments',share);return()=>window.removeEventListener('chat-screenshot-to-moments',share);},[]);
     const [activeTab, setActiveTab] = useState<TabKey>("contacts");
+    // Keep each chat tab mounted after its first visit. Recreating Moments/Profile on
+    // every tab switch caused visible blank-frame flashes and repeated data hydration.
+    const [visitedTabs, setVisitedTabs] = useState<Set<TabKey>>(() => new Set(["contacts"]));
     const [activeSession, setActiveSession] = useState<ChatSession | null>(null);
     const [activeMascot, setActiveMascot] = useState(false);
-    useEffect(()=>{if(!initialSessionId)return;const s=loadChatSessions().find(s=>s.id===initialSessionId);if(s){setActiveSession(s);setActiveTab("messages");}},[initialSessionId]);
+    useEffect(()=>{if(!initialSessionId)return;const s=loadChatSessions().find(s=>s.id===initialSessionId);if(s){setActiveSession(s);switchTab("messages");}},[initialSessionId]);
     // Chat app-level custom CSS (affects all chat pages, lower priority than per-session CSS)
     const [chatAppCSS, setChatAppCSS] = useState(() =>
         typeof window !== "undefined" ? kvGet("chat-app-custom-css") || "" : ""
@@ -57,6 +60,11 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
         return () => { window.removeEventListener(CHAT_APPEARANCE_OPEN, open); window.removeEventListener("keydown", close); };
     }, []);
     const [hideTabBar, setHideTabBar] = useState(false);
+    function switchTab(tab: TabKey) {
+        switchTab(tab);
+        setVisitedTabs(previous => previous.has(tab) ? previous : new Set(previous).add(tab));
+        setHideTabBar(false);
+    }
     // A room is a full-screen overlay. When it closes, the message-list tabs must
     // not inherit a stale hide request from a previously mounted Moments/gallery page.
     useEffect(() => {
@@ -96,7 +104,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
         if (sharePayload) {
             setActiveSession(null);
             setActiveMascot(false);
-            setActiveTab("contacts");
+            switchTab("contacts");
         }
     }, [sharePayload]);
 
@@ -108,7 +116,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
             if (!session) return;
             setActiveMascot(false);
             setActiveSession(session);
-            setActiveTab("messages");
+            switchTab("messages");
         };
         window.addEventListener(CHAT_OPEN_SESSION_EVENT, handler);
         return () => window.removeEventListener(CHAT_OPEN_SESSION_EVENT, handler);
@@ -145,7 +153,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
             addContactReturnSessionRef.current = activeSessionIdRef.current;
             setActiveSession(null);
             setActiveMascot(false);
-            setActiveTab("contacts");
+            switchTab("contacts");
             setPendingAddContactId(characterId);
         };
         window.addEventListener(CHAT_OPEN_ADD_CONTACT_EVENT, handler);
@@ -248,13 +256,13 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
         }
         setActiveMascot(false);
         setActiveSession(sess);
-        setActiveTab("messages");
+        switchTab("messages");
     };
 
     const handleSelectMascot = () => {
         setActiveSession(null);
         setActiveMascot(true);
-        setActiveTab("messages");
+        switchTab("messages");
     };
 
     // Listen for CSS updates from settings panel
@@ -286,35 +294,37 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
             {appearanceOpen && <div className="chat-appearance-scrim" onClick={() => setAppearanceOpen(false)}><section role="dialog" aria-modal="true" aria-labelledby="chat-appearance-title" className="chat-appearance-dialog" onClick={event => event.stopPropagation()}><h2 id="chat-appearance-title">{nightMode ? "切换日间模式" : "切换夜间模式"}</h2><div className="chat-appearance-actions"><button type="button" autoFocus onClick={() => {const next = !nightMode;saveChatNightMode(next);setNightMode(next);setAppearanceOpen(false);}}>确认</button><button type="button" onClick={() => setAppearanceOpen(false)}>取消</button></div></section></div>}
             {/* The Main Content Area */}
             <div className="chat-main-content relative flex-1 flex flex-col overflow-hidden" {...(activeSession || activeMascot ? { "data-covered-by-room": "" } : {})}>
-                {activeTab === "messages" && <ChatMessageList onCloseApp={onClose} activeSession={activeSession} onSelectSession={(session) => { setActiveMascot(false); setActiveSession(session); }} onSelectMascot={handleSelectMascot} />}
-                {activeTab === "contacts" && (
-                    <ChatContactsList
-                        onCloseApp={onClose}
-                        onSelectSession={handleSelectContact}
-                        onSelectMascot={handleSelectMascot}
-                        onOpenMoments={() => setActiveTab("feeds")}
-                        pendingAddContactId={pendingAddContactId}
-                        onPendingAddContactConsumed={() => setPendingAddContactId(null)}
-                        onPendingAddContactBack={() => {
-                            const sessionId = addContactReturnSessionRef.current;
-                            addContactReturnSessionRef.current = null;
-                            if (!sessionId) return;
-                            const session = loadChatSessions().find(s => s.id === sessionId);
-                            if (!session) return;
-                            setActiveSession(session);
-                            setActiveTab("messages");
-                        }}
-                    />
+                {visitedTabs.has("messages") && <div className="contents" style={{ display: activeTab === "messages" ? "contents" : "none" }}><ChatMessageList onCloseApp={onClose} activeSession={activeSession} onSelectSession={(session) => { setActiveMascot(false); setActiveSession(session); }} onSelectMascot={handleSelectMascot} /></div>}
+                {visitedTabs.has("contacts") && (
+                    <div className="contents" style={{ display: activeTab === "contacts" ? "contents" : "none" }}>
+                        <ChatContactsList
+                            onCloseApp={onClose}
+                            onSelectSession={handleSelectContact}
+                            onSelectMascot={handleSelectMascot}
+                            onOpenMoments={() => switchTab("feeds")}
+                            pendingAddContactId={pendingAddContactId}
+                            onPendingAddContactConsumed={() => setPendingAddContactId(null)}
+                            onPendingAddContactBack={() => {
+                                const sessionId = addContactReturnSessionRef.current;
+                                addContactReturnSessionRef.current = null;
+                                if (!sessionId) return;
+                                const session = loadChatSessions().find(s => s.id === sessionId);
+                                if (!session) return;
+                                setActiveSession(session);
+                                switchTab("messages");
+                            }}
+                        />
+                    </div>
                 )}
-                {activeTab === "feeds" && <MomentsFeed onCloseApp={onClose} />}
-                {activeTab === "me" && <UserProfilePanel onClose={() => setActiveTab("contacts")} />}
+                {visitedTabs.has("feeds") && <div className="contents" style={{ display: activeTab === "feeds" ? "contents" : "none" }}><MomentsFeed onCloseApp={onClose} /></div>}
+                {visitedTabs.has("me") && <div className="contents" style={{ display: activeTab === "me" ? "contents" : "none" }}><UserProfilePanel onClose={() => switchTab("contacts")} /></div>}
             </div>
 
             {/* Bottom Navigation Bar — hide when inside a chat room */}
             <nav className="chat-tab-bar chat-bottom-glass-bar" data-ui="nav" style={{ display: activeSession || activeMascot || hideTabBar ? "none" : undefined }}>
                 <button
                     className={`chat-tab ${activeTab === "contacts" ? "chat-tab-active" : ""}`}
-                    onClick={() => setActiveTab("contacts")}
+                    onClick={() => switchTab("contacts")}
                     type="button"
                     aria-label="联系人"
                     aria-current={activeTab === "contacts" ? "page" : undefined}
@@ -323,7 +333,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
                 </button>
                 <button
                     className={`chat-tab ${activeTab === "messages" ? "chat-tab-active" : ""}`}
-                    onClick={() => setActiveTab("messages")}
+                    onClick={() => switchTab("messages")}
                     type="button"
                     aria-label="消息"
                     aria-current={activeTab === "messages" ? "page" : undefined}
@@ -332,7 +342,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
                 </button>
                 <button
                     className={`chat-tab ${activeTab === "feeds" ? "chat-tab-active" : ""}`}
-                    onClick={() => setActiveTab("feeds")}
+                    onClick={() => switchTab("feeds")}
                     type="button"
                     aria-label="动态"
                     aria-current={activeTab === "feeds" ? "page" : undefined}
@@ -341,7 +351,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
                 </button>
                 <button
                     className={`chat-tab ${activeTab === "me" ? "chat-tab-active" : ""}`}
-                    onClick={() => setActiveTab("me")}
+                    onClick={() => switchTab("me")}
                     type="button"
                     aria-label="主页"
                     aria-current={activeTab === "me" ? "page" : undefined}
