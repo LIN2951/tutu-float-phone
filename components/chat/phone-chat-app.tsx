@@ -61,7 +61,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
     }, []);
     const [hideTabBar, setHideTabBar] = useState(false);
     function switchTab(tab: TabKey) {
-        switchTab(tab);
+        setActiveTab(tab);
         setVisitedTabs(previous => previous.has(tab) ? previous : new Set(previous).add(tab));
         setHideTabBar(false);
     }
