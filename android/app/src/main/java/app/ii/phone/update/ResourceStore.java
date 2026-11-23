@@ -55,8 +55,18 @@ public final class ResourceStore {
         pruneAsync();
     }
     private void pruneAsync() {
-        Thread cleanup = new Thread(this::prune, "FloatResourcePrune");
+        Thread cleanup = new Thread(() -> {
+            try {
+                // Let MainActivity attach its first WebView frame before competing for disk I/O.
+                Thread.sleep(500);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            prune();
+        }, "FloatResourcePrune");
         cleanup.setDaemon(true);
+        cleanup.setPriority(Thread.MIN_PRIORITY);
         cleanup.start();
     }
     public synchronized JSONObject getState() throws Exception {
