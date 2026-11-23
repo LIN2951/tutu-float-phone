@@ -8,7 +8,7 @@ import {REVERSE_NAV} from "@/lib/reverse-phone-runtime";
 import {useAppBack} from "@/lib/back-navigation";
 import { PhoneLockScreen } from "./phone-lock-screen";
 import { loadPhoneLock } from "@/lib/phone-lock";
-import { NovelApp } from "./novel/novel-app";
+const NovelApp = lazy(() => import("./novel/novel-app").then(m => ({ default: m.NovelApp })));
 import { privateDesktopNotice, mergeDesktopNotice, type DesktopMessageNotice } from "@/lib/desktop-message-notice";
 import { isRingtoneSource } from "@/lib/ringtone-source";
 import { chatContactDisplayName } from "@/lib/communication-display-name";
@@ -16,7 +16,7 @@ import { resolveChatCharacterAvatar } from "@/lib/chat-profile-storage";
 import { SOCIAL_APPS, type SocialNotice } from "@/lib/social-notifications";
 
 import { RelationshipSuggestionPrompt } from "./character/relationship-suggestion-prompt";
-import { Component, memo, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ErrorInfo, type ReactNode } from "react";
+import { Component, lazy, Suspense, memo, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ErrorInfo, type ReactNode } from "react";
 
 import { updateStatusBarTone } from "@/lib/bg-tone";
 import { MOBILE_SHELL_MQ } from "@/lib/mobile-shell";
@@ -24,48 +24,49 @@ import { startDiaryEntryTimerService, stopDiaryEntryTimerService } from "@/lib/d
 import { startFollowUpService, stopFollowUpService } from "@/lib/follow-up-service";
 import { startMomentsService, stopMomentsService } from "@/lib/moments-engine";
 import { bgTimerCleanup } from "@/lib/bg-timer";
-import { PhoneThemeApp } from "@/components/phone-theme-app";
-import { PhoneCharacterApp } from "@/components/phone-character-app";
-import { PhotosApp } from "@/components/photos/photos-app";
+const PhoneThemeApp = lazy(() => import("@/components/phone-theme-app").then(m => ({ default: m.PhoneThemeApp })));
+const PhoneCharacterApp = lazy(() => import("@/components/phone-character-app").then(m => ({ default: m.PhoneCharacterApp })));
+const PhotosApp = lazy(() => import("@/components/photos/photos-app").then(m => ({ default: m.PhotosApp })));
 import { WEV_OPEN_CHAT_LIVE } from "@/lib/weverse-live-collaboration";
-import { WeverseApp } from "@/components/weverse/weverse-app";
+const WeverseApp = lazy(() => import("@/components/weverse/weverse-app").then(m => ({ default: m.WeverseApp })));
 import {LiveBackgroundWindows} from "./live-background-windows";
-import { LysnApp } from "@/components/lysn/lysn-app";
-import { SmsApp } from "@/components/sms/sms-app";
-import { PhoneApp } from "@/components/phone/phone-app";
-import { TwitterApp } from "@/components/twitter/twitter-app";
-import { TheqooApp } from "@/components/theqoo/theqoo-app";
-import { QuestionBoxApp } from "@/components/question-box/question-box-app";
+const LysnApp = lazy(() => import("@/components/lysn/lysn-app").then(m => ({ default: m.LysnApp })));
+const SmsApp = lazy(() => import("@/components/sms/sms-app").then(m => ({ default: m.SmsApp })));
+const PhoneApp = lazy(() => import("@/components/phone/phone-app").then(m => ({ default: m.PhoneApp })));
+const TwitterApp = lazy(() => import("@/components/twitter/twitter-app").then(m => ({ default: m.TwitterApp })));
+const TheqooApp = lazy(() => import("@/components/theqoo/theqoo-app").then(m => ({ default: m.TheqooApp })));
+const QuestionBoxApp = lazy(() => import("@/components/question-box/question-box-app").then(m => ({ default: m.QuestionBoxApp })));
 import { maybeGenerateLysnBackgroundMessage } from "@/lib/lysn-background";
 import { maybeGenerateSmsBackgroundMessage } from "@/lib/sms-background";
-import { PhoneSettingsApp } from "@/components/phone-settings-app";
+const PhoneSettingsApp = lazy(() => import("@/components/phone-settings-app").then(m => ({ default: m.PhoneSettingsApp })));
 import { PhoneChatApp } from "@/components/chat/phone-chat-app";
 import { PhonePlaceholderApp } from "@/components/phone-placeholder-app";
 import MusicApp from "@/components/music/music-app";
 import MusicPlayer from "@/components/music/music-player";
 import MusicIsland from "@/components/music/music-island";
 import MiniAppWindow from "@/components/music/mini-app-window";
-import { PhoneCalendarApp } from "@/components/calendar-app";
-import { WorldlineApp } from "@/components/worldline-app";
-import { PhoneQaApp } from "@/components/phone-qa-app";
+const PhoneCalendarApp = lazy(() => import("@/components/calendar-app").then(m => ({ default: m.PhoneCalendarApp })));
+const WorldlineApp = lazy(() => import("@/components/worldline-app").then(m => ({ default: m.WorldlineApp })));
+const PhoneQaApp = lazy(() => import("@/components/phone-qa-app").then(m => ({ default: m.PhoneQaApp })));
 import { ChatPluginPageBoundary } from "@/components/chat/chat-plugin-page-boundary";
-import { ResourceHubApp } from "@/components/resource-hub/resource-hub-app";
+const ResourceHubApp = lazy(() => import("@/components/resource-hub/resource-hub-app").then(m => ({ default: m.ResourceHubApp })));
 import "@/lib/qa-error-log";
-import { DiaryApp } from "@/components/diary/diary-app";
-import { XiaohongshuApp } from "@/components/xiaohongshu/xiaohongshu-app";
-import { StoryApp } from "@/components/story/story-app";
-import ReadingApp from "@/components/reading/reading-app";
-import MapApp from "@/components/map/map-app";
-import { DwellingApp } from "@/components/dwelling/dwelling-app";
+const DiaryApp = lazy(() => import("@/components/diary/diary-app").then(m => ({ default: m.DiaryApp })));
+const XiaohongshuApp = lazy(() => import("@/components/xiaohongshu/xiaohongshu-app").then(m => ({ default: m.XiaohongshuApp })));
+const StoryApp = lazy(() => import("@/components/story/story-app").then(m => ({ default: m.StoryApp })));
+const ReadingApp = lazy(() => import("@/components/reading/reading-app"));
+const MapApp = lazy(() => import("@/components/map/map-app"));
+const DwellingApp = lazy(() => import("@/components/dwelling/dwelling-app").then(m => ({ default: m.DwellingApp })));
 import { MascotFloat } from "@/components/mascot/mascot-float";
 import { MascotPreviewHost } from "@/components/mascot/mascot-preview-host";
 import { useMusicControlsOptional } from "@/lib/music-context";
-import { PhoneResourcesApp, type ResourceSubPage } from "@/components/phone-resources-app";
-import { CheckPhoneApp } from "@/components/checkphone/checkphone-app";
-import { ShoppingApp } from "@/components/shopping/shopping-app";
-import { GameHubApp } from "@/components/game/game-hub-app";
-import InterviewMagazineApp from "@/components/interview/interview-magazine-app";
-import { AppMarketApp } from "@/components/app-market/app-market-app";
+import type { ResourceSubPage } from "@/components/phone-resources-app";
+const PhoneResourcesApp = lazy(() => import("@/components/phone-resources-app").then(m => ({ default: m.PhoneResourcesApp })));
+const CheckPhoneApp = lazy(() => import("@/components/checkphone/checkphone-app").then(m => ({ default: m.CheckPhoneApp })));
+const ShoppingApp = lazy(() => import("@/components/shopping/shopping-app").then(m => ({ default: m.ShoppingApp })));
+const GameHubApp = lazy(() => import("@/components/game/game-hub-app").then(m => ({ default: m.GameHubApp })));
+const InterviewMagazineApp = lazy(() => import("@/components/interview/interview-magazine-app"));
+const AppMarketApp = lazy(() => import("@/components/app-market/app-market-app").then(m => ({ default: m.AppMarketApp })));
 import { CustomAppRunner } from "@/components/app-market/custom-app-runner";
 import { CustomAppForegroundBoundary } from "@/components/app-market/custom-app-failure";
 import { hydrateKvDb, kvGet, kvSet, kvRemove, kvKeysWithPrefix } from "@/lib/kv-db";
@@ -170,7 +171,7 @@ import { PHONE_EVENT, appendPhoneCall, getCharacterPhoneNumber, getUnseenMissedC
 import { installChatSoundListener, playChatSoundOnce, setMiniChatSoundSessionId, startChatSoundLoop } from "@/lib/chat-sound";
 import { setMascotContext } from "@/lib/mascot-context";
 import { DESKTOP_WIDGETS_CHANGED_EVENT } from "@/lib/mascot-events";
-import { BrowserApp } from "@/components/browser/browser-app";
+const BrowserApp = lazy(() => import("@/components/browser/browser-app").then(m => ({ default: m.BrowserApp })));
 import { sendBrowserNotification } from "@/lib/browser-notification";
 import type { ChatSharePayload } from "@/lib/chat-share";
 import { completePendingMcpOAuthCallback } from "@/lib/tool-executor";
@@ -4993,24 +4994,27 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                 ) : (
                   <>
                     <section className="phone-app-pane" style={activeApp === "chat" || activeApp === "weverse" || activeApp === "dwelling" || activeApp === "xiaohongshu" || activeApp === "shopping" || activeApp === "theqoo" || activeApp === toCustomAppIconId("theqoo.float.forum") ? { display: "none" } : undefined}>
-                      {renderAppBody()}
+                      <Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}>{renderAppBody()}</Suspense>
                     </section>
                     {/* DwellingApp stays mounted while generating — auto-unmounts when idle */}
                     {dwellingMounted && (
                       <section className="phone-app-pane" style={activeApp !== "dwelling" ? { display: "none" } : undefined}>
+                        <Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}>
                         <DwellingApp
                           onClose={() => setActiveApp(null)}
                           visible={activeApp === "dwelling"}
                           onIdle={() => { if (activeApp !== "dwelling") setDwellingMounted(false); }}
                         />
+                        </Suspense>
                       </section>
                     )}
                   </>
                 )}
                 {(chatVisited||activeApp==="chat")&&<section className="phone-app-pane" style={activeApp!=="chat"?{display:"none"}:undefined}><PhoneChatApp onClose={()=>{setActiveApp(null);setActiveChatSession(null);setChatInitSessionId(null);}} initialSessionId={chatInitSessionId} onSessionChange={setActiveChatSession}/></section>}
-                {(wvsVisited||activeApp==="weverse")&&<section className="phone-app-pane" style={activeApp!=="weverse"?{display:"none"}:undefined}><WeverseApp visible={activeApp==="weverse"} onClose={()=>setActiveApp(null)} onNotice={setNotice}/></section>}
+                {(wvsVisited||activeApp==="weverse")&&<section className="phone-app-pane" style={activeApp!=="weverse"?{display:"none"}:undefined}><Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}><WeverseApp visible={activeApp==="weverse"} onClose={()=>setActiveApp(null)} onNotice={setNotice}/></Suspense></section>}
                 {xiaohongshuMounted && (
                   <section className="phone-app-pane" style={activeApp !== "xiaohongshu" ? { display: "none" } : undefined}>
+                    <Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}>
                     <XiaohongshuApp
                       onClose={handleCloseXiaohongshu}
                       onNotice={setNotice}
@@ -5023,10 +5027,12 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                         }
                       }}
                     />
+                    </Suspense>
                   </section>
                 )}
                 {shoppingMounted && (
                   <section className="phone-app-pane" style={activeApp !== "shopping" ? { display: "none" } : undefined}>
+                    <Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}>
                     <ShoppingApp
                       onClose={handleCloseShopping}
                       visible={activeApp === "shopping"}
@@ -5038,10 +5044,12 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                         }
                       }}
                     />
+                    </Suspense>
                   </section>
                 )}
                 {theqooMounted && (
                   <section className="phone-app-pane" style={activeApp !== "theqoo" ? { display: "none" } : undefined}>
+                    <Suspense fallback={<div className="phone-app-loading" aria-label="正在打开应用" />}>
                     <TheqooApp
                       onClose={handleCloseTheqoo}
                       onNotice={setNotice}
@@ -5054,6 +5062,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
                         }
                       }}
                     />
+                    </Suspense>
                   </section>
                 )}
                 {marketTheqooMounted && (() => {
