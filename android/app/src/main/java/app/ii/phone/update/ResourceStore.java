@@ -47,10 +47,17 @@ public final class ResourceStore {
     }
     public synchronized void prepareStartup() throws Exception {
         JSONObject state=read();
-        if (state.optInt("build",-1)!=build) { write(new JSONObject().put("build",build).put("active","").put("previous","").put("staged","").put("pending",false).put("highest",0).put("message",""));prune();return; }
+        if (state.optInt("build",-1)!=build) { write(new JSONObject().put("build",build).put("active","").put("previous","").put("staged","").put("pending",false).put("highest",0).put("message",""));pruneAsync();return; }
         if (state.optBoolean("pending",false)) restore(state,"上次更新未完成启动，已恢复旧资源。");
         else if (!state.optString("active").isEmpty() && !exists(state.optString("active"))) restore(state,"更新资源不完整，已恢复旧资源。");
-        prune();
+        // Old update bundles can be large. Never recursively delete them on the UI thread
+        // while MainActivity is preparing the first WebView frame.
+        pruneAsync();
+    }
+    private void pruneAsync() {
+        Thread cleanup = new Thread(this::prune, "FloatResourcePrune");
+        cleanup.setDaemon(true);
+        cleanup.start();
     }
     public synchronized JSONObject getState() throws Exception {
         JSONObject state=read();JSONObject result=new JSONObject().put("nativeBuild",build).put("highest",state.optLong("highest",0)).put("active",descriptor(state.optString("active",""))).put("pending",state.optBoolean("pending",false)).put("message",state.optString("message","")).put("canRollback",exists(state.optString("previous","")) || !state.optString("active","").isEmpty());
@@ -78,7 +85,7 @@ public final class ResourceStore {
     }
     public synchronized void rollback() throws Exception {JSONObject state=read();restore(state,"已恢复上次资源版本。");prune();}
     public synchronized String activePath() throws Exception {String id=read().optString("active","");return exists(id)?new File(directory(id),"www").getAbsolutePath():null;}
-    private void prune() {
+    private synchronized void prune() {
         try {JSONObject state=read();File[] dirs=new File(root,"bundles").listFiles();if(dirs==null)return;for(File dir:dirs){String id=dir.getName();if(!id.equals(state.optString("active"))&&!id.equals(state.optString("previous"))&&!id.equals(state.optString("staged")))ResourcePackage.deleteTree(dir);}}catch(Exception ignored){}
     }
 }
