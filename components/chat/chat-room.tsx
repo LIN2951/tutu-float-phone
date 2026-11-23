@@ -1992,28 +1992,34 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         setOfflineTurns(loadChatOfflineTurns(session.id));
         setOfflineSceneBusy(false);
 
-        // Prewarm sticker cache for all relevant characters, then load messages
+        // Show cached messages immediately. Sticker prewarming is an enhancement and
+        // must not block opening a character conversation or its first paint.
         const allMsgs = loadChatMessages(session.id);
-        const initialStart=isReverseActive()?Math.max(0,allMsgs.length-50):callSafeWindowStart(allMsgs,Math.max(0,allMsgs.length-INITIAL_LOAD));
-        const msgs=allMsgs.slice(initialStart);
-        const nextHasMore=initialStart>0;
+        const initialStart = isReverseActive()
+            ? Math.max(0, allMsgs.length - 50)
+            : callSafeWindowStart(allMsgs, Math.max(0, allMsgs.length - INITIAL_LOAD));
+        const msgs = allMsgs.slice(initialStart);
+        const nextHasMore = initialStart > 0;
         hasMoreRef.current = nextHasMore;
         setHasMore(nextHasMore);
+        needsInitialScrollRef.current = true;
+        prevMsgCountRef.current = 0;
+        visibleMessagesRef.current = msgs;
+        seenKktMessageIdsRef.current = new Set(msgs.map(message => message.id));
+        setMessages(msgs);
+
         const charIds = session.isGroup && session.participantIds
             ? session.participantIds
             : [session.contactId];
-        let initialCancelled=false;
-        Promise.all(charIds.map(id => prewarmStickerCache(id))).then(() => {
-            if(initialCancelled)return;
-            const fresh=loadChatMessages(session.id),freshStart=isReverseActive()?Math.max(0,fresh.length-50):callSafeWindowStart(fresh,Math.max(0,fresh.length-INITIAL_LOAD)),msgs=fresh.slice(freshStart);
-            hasMoreRef.current=freshStart>0;setHasMore(freshStart>0);
-            setStickerReady(true);
-            needsInitialScrollRef.current = true;
-            prevMsgCountRef.current = 0;
-            visibleMessagesRef.current = msgs;
-            seenKktMessageIdsRef.current = new Set(msgs.map(message => message.id));
-            setMessages(msgs);
-        });
+        let initialCancelled = false;
+        void Promise.all(charIds.map(id => prewarmStickerCache(id)))
+            .then(() => {
+                if (!initialCancelled) setStickerReady(true);
+            })
+            .catch((error) => {
+                console.warn("[ChatRoom] Sticker prewarm failed:", error);
+                if (!initialCancelled) setStickerReady(true);
+            });
 
         // If a background generation is still in progress, show loading indicator.
         // Old or expired locks are cleared so the room cannot stay frozen forever.
