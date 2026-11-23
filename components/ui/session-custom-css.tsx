@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useLayoutEffect } from "react";
 import { extractCssImports, scopeSessionCSS } from "@/lib/css-scoper";
 
 /**
@@ -21,12 +21,23 @@ export function SessionCustomCSS({ css, scope }: { css: string; scope: string })
     }, [css]);
     const scoped = useMemo(() => scopeSessionCSS(body, scope), [body, scope]);
 
-    return (
-        <>
-            {imports.map((href) => (
-                <link key={href} rel="stylesheet" href={href} precedence="default" />
-            ))}
-            {scoped ? <style dangerouslySetInnerHTML={{ __html: scoped }} /> : null}
-        </>
-    );
+    // React 19 treats <link rel="stylesheet" precedence> as a document resource and
+    // may keep it in <head> after this component changes CSS or unmounts. That leaves
+    // old imported stylesheets active when users switch beautification schemes.
+    // Own these links imperatively so every CSS replacement removes the previous set.
+    useLayoutEffect(() => {
+        const ownedLinks = imports.map((href) => {
+            const link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = href;
+            link.dataset.floatSessionCssImport = "true";
+            document.head.appendChild(link);
+            return link;
+        });
+        return () => {
+            ownedLinks.forEach((link) => link.remove());
+        };
+    }, [imports]);
+
+    return scoped ? <style data-float-session-css={scope} dangerouslySetInnerHTML={{ __html: scoped }} /> : null;
 }
