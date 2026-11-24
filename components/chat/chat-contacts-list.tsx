@@ -59,6 +59,7 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
     // cached contacts can be rendered immediately instead of showing an empty list
     // until the first passive effect runs.
     const chars = useMemo(() => loadCharacters(), []);
+    const charsById = useMemo(() => new Map(chars.map(character => [character.id, character])), [chars]);
     const [contacts, setContacts] = useState<(ChatContact & { char?: Character })[]>(() => {
         try {
             const byId = new Map(chars.map(character => [character.id, character]));
@@ -160,7 +161,7 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
         const rawContacts = loadChatContacts();
         const enriched = rawContacts.map(c => ({
             ...c,
-            char: chars.find(ch => ch.id === c.characterId)
+            char: charsById.get(c.characterId)
         })).filter(c => c.char);
         enriched.sort((a, b) => {
             const aName = a.char ? resolveChatCharacterDisplayName(a.char) : "";
