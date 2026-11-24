@@ -330,4 +330,4 @@ export function dbReplaceContacts(contacts: ChatContact[]): void {
 }
 
 const pendingMessages=new Map<string,ChatMessage>();
-export async function flushPendingChatMessages(){for(const [id,message] of pendingMessages){await chatDb.messages.put(message);if(pendingMessages.get(id)===message)pendingMessages.delete(id);} const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("messages").bulkPut(Array.from(pendingMessages.values())); } finally { db.close(); }}
+export async function flushPendingChatMessages(){for(const [id,message] of pendingMessages){await chatDb.messages.put(message); const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("messages").put(message); } finally { db.close(); } if(pendingMessages.get(id)===message)pendingMessages.delete(id); }}
