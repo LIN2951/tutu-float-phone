@@ -36,12 +36,12 @@ export function scopeSessionCSS(raw: string, scopeSelector: string): string {
   const keyframes = new Map<string, string>();
   const fontFamilies = new Map<string, string>();
 
-  raw.replace(/@(?:-webkit-)?keyframes\\s+([\\w-]+)/gi, (_match, name: string) => {
+  raw.replace(/@(?:-webkit-)?keyframes\s+([\w-]+)/gi, (_match, name: string) => {
     if (!keyframes.has(name)) keyframes.set(name, `float_${suffix}_${name}`);
     return _match;
   });
-  raw.replace(/@font-face\\s*\\{([^}]*)\\}/gi, (_match, declarations: string) => {
-    const family = declarations.match(/font-family\\s*:\\s*(['"]?)([^;'"]+)\\1\\s*;/i)?.[2]?.trim();
+  raw.replace(/@font-face\s*\{([^}]*)\}/gi, (_match, declarations: string) => {
+    const family = declarations.match(/font-family\s*:\s*(['"]?)([^;'"]+)\1\s*;/i)?.[2]?.trim();
     if (family && !fontFamilies.has(family)) fontFamilies.set(family, `float_${suffix}_${family.replace(/[^a-zA-Z0-9_-]/g, "_")}`);
     return _match;
   });
@@ -59,7 +59,7 @@ function scopeSessionCSSInternal(
   let i = 0;
 
   while (i < raw.length) {
-    while (i < raw.length && /\\s/.test(raw[i])) { result.push(raw[i]); i++; }
+    while (i < raw.length && /\s/.test(raw[i])) { result.push(raw[i]); i++; }
     if (i >= raw.length) break;
 
     if (raw[i] === "/" && raw[i + 1] === "*") {
@@ -69,7 +69,7 @@ function scopeSessionCSSInternal(
     }
 
     if (raw[i] === "@") {
-      const atRuleMatch = raw.slice(i).match(/^@([\\w-]+)\\s*/);
+      const atRuleMatch = raw.slice(i).match(/^@([\w-]+)\s*/);
       if (atRuleMatch) {
         const atName = atRuleMatch[1].toLowerCase();
 
@@ -84,7 +84,7 @@ function scopeSessionCSSInternal(
           if (braceStart === -1) { result.push(raw.slice(i)); break; }
           const blockEnd = findMatchingBrace(raw, braceStart);
           const prelude = raw.slice(i, braceStart).replace(
-            /(@(?:-webkit-)?keyframes\\s+)([\\w-]+)/i,
+            /(@(?:-webkit-)?keyframes\s+)([\w-]+)/i,
             (_m, prefix, name) => prefix + (keyframes.get(name) || name),
           );
           result.push(prelude + raw.slice(braceStart, blockEnd + 1));
@@ -135,11 +135,11 @@ function rewriteCssDeclarations(
   fontFamilies: Map<string, string>,
 ): string {
   return block.replace(
-    /(^|[;{]\\s*)(animation(?:-name)?|font-family)\\s*:\\s*([^;{}]*)(?=;|[{}])/gi,
+    /(^|[;{]\s*)(animation(?:-name)?|font-family)\s*:\s*([^;{}]*)(?=;|[{}])/gi,
     (_match, prefix: string, property: string, rawValue: string) => {
       let value = rawValue;
       if (property.toLowerCase() === "font-family") {
-        value = value.replace(/(["'])(.*?)\\1|([^,]+)/g, (part: string, quote: string | undefined, quoted: string | undefined, plain: string | undefined) => {
+        value = value.replace(/(["'])(.*?)\1|([^,]+)/g, (part: string, quote: string | undefined, quoted: string | undefined, plain: string | undefined) => {
           const family = (quoted ?? plain ?? "").trim();
           const renamed = fontFamilies.get(family);
           if (!renamed) return part;
@@ -147,7 +147,7 @@ function rewriteCssDeclarations(
         });
       } else {
         for (const [name, renamed] of keyframes) {
-          value = value.replace(new RegExp(`(^|[^\\\\w-])${escapeRegExp(name)}(?=$|[^\\\\w-])`, "g"), (_m, before) => before + renamed);
+          value = value.replace(new RegExp(`(^|[^\\w-])${escapeRegExp(name)}(?=$|[^\\w-])`, "g"), (_m, before) => before + renamed);
         }
       }
       return `${prefix}${property}: ${value}`;
@@ -156,7 +156,7 @@ function rewriteCssDeclarations(
 }
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Commas inside :is(), :has(), attribute selectors or quoted strings are not list separators. */
