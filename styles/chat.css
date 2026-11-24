@@ -8672,3 +8672,12 @@
 .offline-music-mini,.offline-music-panel{max-width:100%;}
 
 .chat-room-wrapper[data-offline-notes="true"]>.offline-music-float{position:absolute!important;pointer-events:auto;max-width:calc(100% - 20px)!important;}
+
+/* Native-feeling chat scrolling on Android WebView and mobile browsers. */
+.chat-app .chat-room-wrapper > .page-body {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  scroll-behavior: auto !important;
+  will-change: scroll-position;
+}
