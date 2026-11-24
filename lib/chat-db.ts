@@ -129,11 +129,6 @@ export async function initChatDb(): Promise<{
             return data;
         }
 
-        // Migration metadata can disappear independently from live data.
-        // Try the isolated recovery copy before declaring this a new install.
-        const recovered = await restoreChatRecoverySnapshot();
-        if (recovered) { markMigrated(); return recovered; }
-
         // First run after migration: move localStorage data → IndexedDB
         try {
             const rawMessages = window.localStorage.getItem(LS_MESSAGES_KEY);
@@ -143,6 +138,13 @@ export async function initChatDb(): Promise<{
             const lsMessages: ChatMessage[] = rawMessages ? JSON.parse(rawMessages) : [];
             const lsSessions: ChatSession[] = rawSessions ? JSON.parse(rawSessions) : [];
             const lsContacts: ChatContact[] = rawContacts ? JSON.parse(rawContacts) : [];
+
+            // If migration metadata and the legacy payload are both gone, recover
+            // the last known-good copy instead of silently initializing empty data.
+            if (lsMessages.length + lsSessions.length + lsContacts.length === 0) {
+                const recovered = await restoreChatRecoverySnapshot();
+                if (recovered) { markMigrated(); return recovered; }
+            }
 
             if (lsMessages.length > 0) {
                 await chatDb.messages.bulkPut(lsMessages);
