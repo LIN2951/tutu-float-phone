@@ -9,6 +9,7 @@ on:
       - "components/chat/phone-chat-app.tsx"
       - "lib/chat-db.ts"
       - "lib/chat-storage.ts"
+      - "lib/kv-db.ts"
       - "components/chat/chat-room.tsx"
       - "components/chat/chat-contacts-list.tsx"
       - "components/ui/session-custom-css.tsx"
