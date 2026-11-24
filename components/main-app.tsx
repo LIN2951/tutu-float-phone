@@ -228,16 +228,15 @@ export function MainApp() {
   useEffect(() => { if (!hydrated) return; const frame = requestAnimationFrame(() => { void acknowledgeResourceStartup(); }); return () => cancelAnimationFrame(frame); }, [hydrated]);
   useEffect(() => {
     if (!hydrated) return;
-    let cancelled = false;
+    let cleanup: (() => void) | undefined;
     const cancelIdle = scheduleIdleTask(() => {
-      void warmBuiltinFonts(() => cancelled);
+      cleanup = startContactRecommendationScheduler();
     });
     return () => {
-      cancelled = true;
       cancelIdle();
+      cleanup?.();
     };
   }, [hydrated]);
-
   const [splashDismissed, setSplashDismissed] = useState(false);
   const [kvHydrateFailed, setKvHydrateFailed] = useState(false);
   const [initAttempt, setInitAttempt] = useState(0);
@@ -256,8 +255,6 @@ export function MainApp() {
 
   useEffect(() => {
     let cancelled = false;
-    let recommendationCleanup: (() => void) | undefined;
-
     // 申请持久化存储：批准后 iOS/安卓不会再因存储压力擅自回收 IndexedDB
     // （摊主钥匙、聊天记录等都存在里面）。静默尽力而为，被拒也无碍。
     void navigator.storage?.persist?.().catch(() => {});
@@ -272,8 +269,6 @@ export function MainApp() {
         return;
       }
       setKvHydrateFailed(false);
-      recommendationCleanup = startContactRecommendationScheduler();
-
       // Lock wallpaper and desktop theme are independent reads. Start them together
       // so startup does not pay the sum of both IndexedDB/image decode times.
       const lockPromise = preparePhoneLockForFirstPaint().catch((error) => {
@@ -304,7 +299,6 @@ export function MainApp() {
     const isMobile = isMobileShell();
     if (!isMobile) return () => {
       cancelled = true;
-      recommendationCleanup?.();
     };
 
     function tryFullscreen() {
