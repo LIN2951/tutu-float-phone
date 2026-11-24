@@ -283,8 +283,24 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
         return () => window.removeEventListener("chat-hide-tabbar", onHide);
     }, []);
 
-    // Wait for IndexedDB hydration before rendering
-    if (!dbReady) return null;
+    // Render an immediate lightweight shell while IndexedDB hydrates. Returning null
+    // here left the entire chat app blank for the full database-read duration.
+    if (!dbReady) {
+        return (
+            <div ref={appRoot} data-chat-theme={nightMode ? "dark" : "light"} className="chat-app absolute inset-0 z-10 flex flex-col overflow-hidden bg-[var(--c-bg)]" role="status" aria-live="polite" aria-busy="true">
+                <header className="flex h-14 shrink-0 items-center border-b border-[var(--c-border)] px-5">
+                    <span className="text-base font-semibold text-[var(--c-text)]">聊天</span>
+                </header>
+                <div className="flex-1 space-y-4 overflow-hidden px-4 py-5">
+                    <div className="h-11 w-full animate-pulse rounded-xl bg-[var(--c-border)] opacity-60" />
+                    <div className="h-16 w-full animate-pulse rounded-xl bg-[var(--c-border)] opacity-45" />
+                    <div className="h-16 w-full animate-pulse rounded-xl bg-[var(--c-border)] opacity-45" />
+                    <div className="h-16 w-full animate-pulse rounded-xl bg-[var(--c-border)] opacity-45" />
+                    <div className="pt-2 text-center text-xs text-[var(--c-sub)]">正在载入聊天内容</div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div ref={appRoot}
