@@ -31,21 +31,22 @@ export function extractCssImports(raw: string): { imports: string[]; css: string
 export function scopeSessionCSS(raw: string, scopeSelector: string): string {
   if (!raw.trim()) return "";
 
-  // Keyframes and @font-face are document-global CSS primitives. Give them a
-  // deterministic per-scope name and rewrite references in declarations below.
+  // CSS keyframe names and @font-face family names are global in the document.
+  // Namespace them per chat session to prevent one character's CSS replacing another's.
   const suffix = scopeSelector.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/^_+|_+$/g, "") || "session";
   const keyframes = new Map<string, string>();
   const fontFamilies = new Map<string, string>();
 
-  raw.replace(/@(?:-webkit-)?keyframes\s+([\w-]+)/gi, (_match, name: string) => {
-    if (!keyframes.has(name)) keyframes.set(name, `float_${suffix}_${name}`);
-    return _match;
-  });
-  raw.replace(/@font-face\s*\{([^}]*)\}/gi, (_match, declarations: string) => {
-    const family = declarations.match(/font-family\s*:\s*(['"]?)([^;'"]+)\1\s*;?/i)?.[2]?.trim();
-    if (family && !fontFamilies.has(family)) fontFamilies.set(family, `float_${suffix}_${family.replace(/[^a-zA-Z0-9_-]/g, "_")}`);
-    return _match;
-  });
+  for (const match of raw.matchAll(/@(?:-webkit-)?keyframes\s+([\w-]+)/gi)) {
+    const name = match[1];
+    if (!keyframes.has(name)) keyframes.set(name, \`float_\${suffix}_\${name}\`);
+  }
+  for (const match of raw.matchAll(/@font-face\s*\{([^}]*)\}/gi)) {
+    const family = match[1].match(/font-family\s*:\s*(['"]?)([^;'"]+)\1\s*;/i)?.[2]?.trim();
+    if (family && !fontFamilies.has(family)) {
+      fontFamilies.set(family, \`float_\${suffix}_\${family.replace(/[^a-zA-Z0-9_-]/g, "_")}\`);
+    }
+  }
 
   return scopeSessionCSSInternal(raw, scopeSelector, keyframes, fontFamilies);
 }
@@ -96,8 +97,7 @@ function scopeSessionCSSInternal(
           const braceStart = raw.indexOf("{", i);
           if (braceStart === -1) { result.push(raw.slice(i)); break; }
           const blockEnd = findMatchingBrace(raw, braceStart);
-          const block = raw.slice(braceStart, blockEnd + 1);
-          result.push(rewriteCssDeclarations(block, keyframes, fontFamilies));
+          result.push(rewriteCssDeclarations(raw.slice(braceStart, blockEnd + 1), keyframes, fontFamilies));
           i = blockEnd + 1; continue;
         }
 
@@ -136,28 +136,25 @@ function rewriteCssDeclarations(
   fontFamilies: Map<string, string>,
 ): string {
   return block.replace(
-    /(^|[;{]\s*)((?:-webkit-)?animation(?:-name)?|font-family)\s*:\s*([^;{}]*)(?=;|[{}])/gi,
+    /(^|[;{]\s*)(animation(?:-name)?|font-family)\s*:\s*([^;{}]*)(?=;|[{}])/gi,
     (_match, prefix: string, property: string, rawValue: string) => {
       let value = rawValue;
       if (property.toLowerCase() === "font-family") {
-        value = value.replace(/(["'])(.*?)\1|([^,]+)/g, (part: string, quote: string | undefined, quoted: string | undefined, plain: string | undefined) => {
-          const family = (quoted ?? plain ?? "").trim();
-          const renamed = fontFamilies.get(family);
-          if (!renamed) return part;
-          return quote ? `${quote}${renamed}${quote}` : part.replace(family, renamed);
-        });
+        for (const [family, renamed] of fontFamilies) {
+          value = value.replace(new RegExp(\`(^|[,\\\\s])(["']?)\${escapeRegExp(family)}\\\\2(?=\\\\s*[,;])\`, "g"), (_m, before, quote) => before + quote + renamed + quote);
+        }
       } else {
         for (const [name, renamed] of keyframes) {
-          value = value.replace(new RegExp(`(^|[^\\w-])${escapeRegExp(name)}(?=$|[^\\w-])`, "g"), (_m, before) => before + renamed);
+          value = value.replace(new RegExp(\`(^|[^\\\\w-])\${escapeRegExp(name)}(?=$|[^\\\\w-])\`, "g"), (_m, before) => before + renamed);
         }
       }
-      return `${prefix}${property}: ${value}`;
+      return \`\${prefix}\${property}: \${value}\`;
     },
   );
 }
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return value.replace(/[.*+?^\${}()|[\]\\\\]/g, "\\\\$&");
 }
 
 /** Commas inside :is(), :has(), attribute selectors or quoted strings are not list separators. */
