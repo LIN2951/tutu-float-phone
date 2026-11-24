@@ -38,10 +38,18 @@ const CHAT_RECOVERY_SNAPSHOT_ID = "latest";
 async function saveChatRecoverySnapshot(data: { messages: ChatMessage[]; sessions: ChatSession[]; contacts: ChatContact[] }): Promise<void> {
     if (data.messages.length + data.sessions.length + data.contacts.length === 0) return;
     const recovery = new Dexie(CHAT_RECOVERY_DB);
-    recovery.version(1).stores({ snapshots: "id, createdAt" });
+    recovery.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" });
     try {
         await recovery.open();
-        await recovery.table('snapshots').put({ id: CHAT_RECOVERY_SNAPSHOT_ID, createdAt: Date.now(), ...data });
+        await recovery.transaction("rw", recovery.table("messages"), recovery.table("sessions"), recovery.table("contacts"), recovery.table("snapshots"), async () => {
+            await recovery.table("messages").clear();
+            await recovery.table("sessions").clear();
+            await recovery.table("contacts").clear();
+            if (data.messages.length) await recovery.table("messages").bulkPut(data.messages);
+            if (data.sessions.length) await recovery.table("sessions").bulkPut(data.sessions);
+            if (data.contacts.length) await recovery.table("contacts").bulkPut(data.contacts);
+            await recovery.table('snapshots').put({ id: CHAT_RECOVERY_SNAPSHOT_ID, createdAt: Date.now() });
+        });
     } finally { recovery.close(); }
 }
 
@@ -50,9 +58,10 @@ async function restoreChatRecoverySnapshot(): Promise<{ messages: ChatMessage[];
     recovery.version(1).stores({ snapshots: "id, createdAt" });
     try {
         await recovery.open();
-        const snapshot = await recovery.table('snapshots').get(CHAT_RECOVERY_SNAPSHOT_ID) as ({ messages?: ChatMessage[]; sessions?: ChatSession[]; contacts?: ChatContact[] } | undefined);
+        const snapshot = await recovery.table("snapshots").get(CHAT_RECOVERY_SNAPSHOT_ID);
         if (!snapshot) return null;
-        const data = { messages: Array.isArray(snapshot.messages) ? snapshot.messages : [], sessions: Array.isArray(snapshot.sessions) ? snapshot.sessions : [], contacts: Array.isArray(snapshot.contacts) ? snapshot.contacts : [] };
+        const [messages, sessions, contacts] = await Promise.all([recovery.table("messages").toArray(), recovery.table("sessions").toArray(), recovery.table("contacts").toArray()]);
+        const data = { messages: messages as ChatMessage[], sessions: sessions as ChatSession[], contacts: contacts as ChatContact[] };
         if (data.messages.length + data.sessions.length + data.contacts.length === 0) return null;
         await chatDb.transaction("rw", chatDb.messages, chatDb.sessions, chatDb.contacts, async () => {
             await chatDb.messages.bulkPut(data.messages);
@@ -64,6 +73,10 @@ async function restoreChatRecoverySnapshot(): Promise<{ messages: ChatMessage[];
     } finally { recovery.close(); }
 }
 
+
+function mirrorRecoveryWrite(work: () => Promise<unknown>): void {
+    work().catch(err => { console.warn("[ChatDB] Recovery mirror write failed:", err); reportStorageFailure(err); });
+}
 async function checkpointChatData(data: { messages: ChatMessage[]; sessions: ChatSession[]; contacts: ChatContact[] }): Promise<void> {
     await saveChatRecoverySnapshot(data).catch(err => { console.warn('[ChatDB] Recovery snapshot write failed:', err); reportStorageFailure(err); });
 }
@@ -234,10 +247,12 @@ function safeParse<T>(raw: string | null): T[] {
 export function dbPutMessage(msg: ChatMessage): void {
     pendingMessages.set(msg.id,msg);
     chatDb.messages.put(msg).then(()=>{if(pendingMessages.get(msg.id)===msg)pendingMessages.delete(msg.id);}).catch(err => { console.warn("[ChatDB] put message failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(() => (new Dexie(CHAT_RECOVERY_DB)).table("messages").put(msg));
 }
 
 export function dbPutMessages(msgs: ChatMessage[]): void {
     chatDb.messages.bulkPut(msgs).catch(err => { console.warn("[ChatDB] bulkPut messages failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("messages").bulkPut(msgs); } finally { db.close(); } });
 }
 
 // 可等待、错误上抛、分块提交的批量写入。导入聊天记录这类大批量落库必须
@@ -254,6 +269,7 @@ export async function dbBulkPutMessages(msgs: ChatMessage[]): Promise<void> {
 export function dbDeleteMessage(id: string): void {
     pendingMessages.delete(id);
     chatDb.messages.delete(id).catch(err => { console.warn("[ChatDB] delete message failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("messages").delete(id); } finally { db.close(); } });
 }
 
 export function dbDeleteMessagesBySession(sessionId: string): void {
@@ -269,10 +285,12 @@ export function dbDeleteMessagesByIds(ids: string[]): void {
 
 export function dbPutSession(session: ChatSession): void {
     chatDb.sessions.put(session).catch(err => { console.warn("[ChatDB] put session failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("sessions").put(session); } finally { db.close(); } });
 }
 
 export function dbPutSessions(sessions: ChatSession[]): void {
     chatDb.sessions.bulkPut(sessions).catch(err => { console.warn("[ChatDB] bulkPut sessions failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("sessions").bulkPut(sessions); } finally { db.close(); } });
 }
 
 export function dbReplaceSessions(sessions: ChatSession[]): void {
@@ -280,18 +298,22 @@ export function dbReplaceSessions(sessions: ChatSession[]): void {
         await chatDb.sessions.clear();
         await chatDb.sessions.bulkPut(sessions);
     }).catch(err => { console.warn("[ChatDB] replace sessions failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.transaction("rw", db.table("sessions"), async () => { await db.table("sessions").clear(); await db.table("sessions").bulkPut(sessions); }); } finally { db.close(); } });
 }
 
 export function dbDeleteSession(id: string): void {
     chatDb.sessions.delete(id).catch(err => { console.warn("[ChatDB] delete session failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("sessions").delete(id); } finally { db.close(); } });
 }
 
 export function dbPutContacts(contacts: ChatContact[]): void {
     chatDb.contacts.bulkPut(contacts).catch(err => { console.warn("[ChatDB] bulkPut contacts failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("contacts").bulkPut(contacts); } finally { db.close(); } });
 }
 
 export function dbClearContacts(): void {
     chatDb.contacts.clear().catch(err => { console.warn("[ChatDB] clear contacts failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("contacts").clear(); } finally { db.close(); } });
 }
 
 export function dbReplaceContacts(contacts: ChatContact[]): void {
@@ -299,6 +321,7 @@ export function dbReplaceContacts(contacts: ChatContact[]): void {
         await chatDb.contacts.clear();
         await chatDb.contacts.bulkPut(contacts);
     }).catch(err => { console.warn("[ChatDB] replaceContacts failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.transaction("rw", db.table("contacts"), async () => { await db.table("contacts").clear(); await db.table("contacts").bulkPut(contacts); }); } finally { db.close(); } });
 }
 
 const pendingMessages=new Map<string,ChatMessage>();
