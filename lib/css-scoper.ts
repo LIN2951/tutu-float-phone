@@ -30,108 +30,133 @@ export function extractCssImports(raw: string): { imports: string[]; css: string
 export function scopeSessionCSS(raw: string, scopeSelector: string): string {
   if (!raw.trim()) return "";
 
+  // Keyframes and @font-face are document-global CSS primitives. Give them a
+  // deterministic per-scope name and rewrite references in declarations below.
+  const suffix = scopeSelector.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/^_+|_+$/g, "") || "session";
+  const keyframes = new Map<string, string>();
+  const fontFamilies = new Map<string, string>();
+
+  raw.replace(/@(?:-webkit-)?keyframes\\s+([\\w-]+)/gi, (_match, name: string) => {
+    if (!keyframes.has(name)) keyframes.set(name, `float_${suffix}_${name}`);
+    return _match;
+  });
+  raw.replace(/@font-face\\s*\\{([^}]*)\\}/gi, (_match, declarations: string) => {
+    const family = declarations.match(/font-family\\s*:\\s*(['"]?)([^;'"]+)\\1\\s*;/i)?.[2]?.trim();
+    if (family && !fontFamilies.has(family)) fontFamilies.set(family, `float_${suffix}_${family.replace(/[^a-zA-Z0-9_-]/g, "_")}`);
+    return _match;
+  });
+
+  return scopeSessionCSSInternal(raw, scopeSelector, keyframes, fontFamilies);
+}
+
+function scopeSessionCSSInternal(
+  raw: string,
+  scopeSelector: string,
+  keyframes: Map<string, string>,
+  fontFamilies: Map<string, string>,
+): string {
   const result: string[] = [];
   let i = 0;
 
   while (i < raw.length) {
-    // Skip whitespace
-    while (i < raw.length && /\s/.test(raw[i])) {
-      result.push(raw[i]);
-      i++;
-    }
+    while (i < raw.length && /\\s/.test(raw[i])) { result.push(raw[i]); i++; }
     if (i >= raw.length) break;
 
-    // Skip comments
     if (raw[i] === "/" && raw[i + 1] === "*") {
       const end = raw.indexOf("*/", i + 2);
-      if (end === -1) {
-        result.push(raw.slice(i));
-        break;
-      }
-      result.push(raw.slice(i, end + 2));
-      i = end + 2;
-      continue;
+      if (end === -1) { result.push(raw.slice(i)); break; }
+      result.push(raw.slice(i, end + 2)); i = end + 2; continue;
     }
 
-    // Handle @-rules
     if (raw[i] === "@") {
-      const atRuleMatch = raw.slice(i).match(/^@([\w-]+)\s*/);
+      const atRuleMatch = raw.slice(i).match(/^@([\\w-]+)\\s*/);
       if (atRuleMatch) {
         const atName = atRuleMatch[1].toLowerCase();
 
-        // @import — pass through unchanged (e.g. Google Fonts)
         if (atName === "import") {
           const semiEnd = raw.indexOf(";", i);
-          if (semiEnd === -1) {
-            result.push(raw.slice(i));
-            break;
-          }
-          result.push(raw.slice(i, semiEnd + 1));
-          i = semiEnd + 1;
-          continue;
+          if (semiEnd === -1) { result.push(raw.slice(i)); break; }
+          result.push(raw.slice(i, semiEnd + 1)); i = semiEnd + 1; continue;
         }
 
-        // Pass-through rules (don't scope)
-        if (atName === "keyframes" || atName === "font-face") {
+        if (atName.endsWith("keyframes")) {
           const braceStart = raw.indexOf("{", i);
-          if (braceStart === -1) {
-            result.push(raw.slice(i));
-            break;
-          }
+          if (braceStart === -1) { result.push(raw.slice(i)); break; }
           const blockEnd = findMatchingBrace(raw, braceStart);
-          result.push(raw.slice(i, blockEnd + 1));
-          i = blockEnd + 1;
-          continue;
+          const prelude = raw.slice(i, braceStart).replace(
+            /(@(?:-webkit-)?keyframes\\s+)([\\w-]+)/i,
+            (_m, prefix, name) => prefix + (keyframes.get(name) || name),
+          );
+          result.push(prelude + raw.slice(braceStart, blockEnd + 1));
+          i = blockEnd + 1; continue;
         }
 
-        // Media queries and other container rules — recurse into body
-        if (atName === "media" || atName === "supports" || atName === "layer") {
+        if (atName === "font-face") {
           const braceStart = raw.indexOf("{", i);
-          // @layer may only declare order. It must not swallow the next rule.
+          if (braceStart === -1) { result.push(raw.slice(i)); break; }
+          const blockEnd = findMatchingBrace(raw, braceStart);
+          const block = raw.slice(braceStart, blockEnd + 1);
+          result.push(rewriteCssDeclarations(block, keyframes, fontFamilies));
+          i = blockEnd + 1; continue;
+        }
+
+        if (atName === "media" || atName === "supports" || atName === "layer" || atName === "container") {
+          const braceStart = raw.indexOf("{", i);
           const semiEnd = atName === "layer" ? raw.indexOf(";", i) : -1;
           if (semiEnd !== -1 && (braceStart === -1 || semiEnd < braceStart)) {
-            result.push(raw.slice(i, semiEnd + 1));
-            i = semiEnd + 1;
-            continue;
+            result.push(raw.slice(i, semiEnd + 1)); i = semiEnd + 1; continue;
           }
-          if (braceStart === -1) {
-            result.push(raw.slice(i));
-            break;
-          }
+          if (braceStart === -1) { result.push(raw.slice(i)); break; }
           const blockEnd = findMatchingBrace(raw, braceStart);
-          const prelude = raw.slice(i, braceStart + 1);
-          const body = raw.slice(braceStart + 1, blockEnd);
-          result.push(prelude);
-          result.push(scopeSessionCSS(body, scopeSelector));
-          result.push("}");
-          i = blockEnd + 1;
-          continue;
+          result.push(raw.slice(i, braceStart + 1));
+          result.push(scopeSessionCSSInternal(raw.slice(braceStart + 1, blockEnd), scopeSelector, keyframes, fontFamilies));
+          result.push("}"); i = blockEnd + 1; continue;
         }
       }
     }
 
-    // Regular rule: selector { ... }
     const braceStart = raw.indexOf("{", i);
-    if (braceStart === -1) {
-      // No more braces — remaining text is malformed, just push it
-      result.push(raw.slice(i));
-      break;
-    }
-
+    if (braceStart === -1) { result.push(raw.slice(i)); break; }
     const selectorText = raw.slice(i, braceStart).trim();
     const blockEnd = findMatchingBrace(raw, braceStart);
-    const body = raw.slice(braceStart, blockEnd + 1);
-
-    // Scope each selector in comma-separated list
+    const body = rewriteCssDeclarations(raw.slice(braceStart, blockEnd + 1), keyframes, fontFamilies);
     const scopedSelector = splitSelectorList(selectorText)
       .map((sel) => scopeSingleSelector(sel.trim(), scopeSelector))
       .join(", ");
-
     result.push(scopedSelector + " " + body);
     i = blockEnd + 1;
   }
-
   return result.join("");
+}
+
+function rewriteCssDeclarations(
+  block: string,
+  keyframes: Map<string, string>,
+  fontFamilies: Map<string, string>,
+): string {
+  return block.replace(
+    /(^|[;{]\\s*)(animation(?:-name)?|font-family)\\s*:\\s*([^;{}]*)(?=;|[{}])/gi,
+    (_match, prefix: string, property: string, rawValue: string) => {
+      let value = rawValue;
+      if (property.toLowerCase() === "font-family") {
+        value = value.replace(/(["'])(.*?)\\1|([^,]+)/g, (part: string, quote: string | undefined, quoted: string | undefined, plain: string | undefined) => {
+          const family = (quoted ?? plain ?? "").trim();
+          const renamed = fontFamilies.get(family);
+          if (!renamed) return part;
+          return quote ? `${quote}${renamed}${quote}` : part.replace(family, renamed);
+        });
+      } else {
+        for (const [name, renamed] of keyframes) {
+          value = value.replace(new RegExp(`(^|[^\\\\w-])${escapeRegExp(name)}(?=$|[^\\\\w-])`, "g"), (_m, before) => before + renamed);
+        }
+      }
+      return `${prefix}${property}: ${value}`;
+    },
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
 }
 
 /** Commas inside :is(), :has(), attribute selectors or quoted strings are not list separators. */
