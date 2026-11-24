@@ -10,6 +10,8 @@ on:
       - "components/chat/chat-room.tsx"
       - "components/chat/chat-contacts-list.tsx"
       - "components/ui/session-custom-css.tsx"
+      - "components/chat/chat-settings-panel.tsx"
+      - "lib/css-scoper.ts"
       - "vite.mobile.config.mjs"
       - "mobile/**"
       - "android/**"
