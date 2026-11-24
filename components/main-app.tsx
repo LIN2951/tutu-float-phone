@@ -310,7 +310,6 @@ export function MainApp() {
     document.addEventListener("click", tryFullscreen);
     return () => {
       cancelled = true;
-      recommendationCleanup?.();
       document.removeEventListener("click", tryFullscreen);
     };
   }, [initAttempt]);
