@@ -54,6 +54,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
     // Cache all visited sessions so their ChatRoom stays mounted (hidden)
     const [visitedSessions, setVisitedSessions] = useState<Map<string, ChatSession>>(new Map());
     const [dbReady, setDbReady] = useState(false);
+    const [dbLoadError, setDbLoadError] = useState(false);
     const [nightMode, setNightMode] = useState(loadChatNightMode);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
     useEffect(() => {
@@ -77,15 +78,22 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
 
     // Hydrate IndexedDB → in-memory caches on mount
     useEffect(() => {
+        let cancelled = false;
         hydrateChatStorage().then(() => {
+            if (cancelled) return;
             setNightMode(loadChatNightMode());
+            setDbLoadError(false);
             setDbReady(true);
             // Resolve initial session after hydration
             if (initialSessionId) {
                 const s = loadChatSessions().find(s => s.id === initialSessionId);
                 if (s) setActiveSession(s);
             }
+        }).catch(err => {
+            console.error("[PhoneChatApp] chat database load failed; refusing to show empty account:", err);
+            if (!cancelled) setDbLoadError(true);
         });
+        return () => { cancelled = true; };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // React to external session navigation (e.g., incoming call acceptance)
