@@ -7,6 +7,8 @@ on:
     paths:
       - "components/desktop-shell.tsx"
       - "components/chat/phone-chat-app.tsx"
+      - "lib/chat-db.ts"
+      - "lib/chat-storage.ts"
       - "components/chat/chat-room.tsx"
       - "components/chat/chat-contacts-list.tsx"
       - "components/ui/session-custom-css.tsx"
