@@ -1303,8 +1303,9 @@ export function hydrateChatStorage(): Promise<void> {
         if (normalizedSessions.changed || redirectedMessages > 0 || refreshedSessions.changed) dbReplaceSessions(refreshedSessions.items);
         _hydrated = true;
     }).catch(err => {
-        console.warn("[ChatStorage] hydration failed, will retry on next call:", err);
+        console.error("[ChatStorage] hydration failed; chat storage remains unavailable:", err);
         _hydratePromise = null;
+        throw err;
     });
     return _hydratePromise;
 }
