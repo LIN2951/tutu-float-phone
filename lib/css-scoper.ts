@@ -24,8 +24,9 @@ export function extractCssImports(raw: string): { imports: string[]; css: string
 /**
  * Scope raw CSS so every rule selector is prefixed with a scope selector.
  * - `body` / `html` / `:root` selectors are replaced with the scope selector.
- * - `@keyframes` / `@font-face` blocks are passed through unchanged.
- * - Media queries are handled recursively.
+ * - `@keyframes` and `@font-face` names are isolated per scope.
+ * - Animation and font-family references are rewritten to match those names.
+ * - Media/container queries are handled recursively.
  */
 export function scopeSessionCSS(raw: string, scopeSelector: string): string {
   if (!raw.trim()) return "";
@@ -41,7 +42,7 @@ export function scopeSessionCSS(raw: string, scopeSelector: string): string {
     return _match;
   });
   raw.replace(/@font-face\s*\{([^}]*)\}/gi, (_match, declarations: string) => {
-    const family = declarations.match(/font-family\s*:\s*(['"]?)([^;'"]+)\1\s*;/i)?.[2]?.trim();
+    const family = declarations.match(/font-family\s*:\s*(['"]?)([^;'"]+)\1\s*;?/i)?.[2]?.trim();
     if (family && !fontFamilies.has(family)) fontFamilies.set(family, `float_${suffix}_${family.replace(/[^a-zA-Z0-9_-]/g, "_")}`);
     return _match;
   });
@@ -135,7 +136,7 @@ function rewriteCssDeclarations(
   fontFamilies: Map<string, string>,
 ): string {
   return block.replace(
-    /(^|[;{]\s*)(animation(?:-name)?|font-family)\s*:\s*([^;{}]*)(?=;|[{}])/gi,
+    /(^|[;{]\s*)((?:-webkit-)?animation(?:-name)?|font-family)\s*:\s*([^;{}]*)(?=;|[{}])/gi,
     (_match, prefix: string, property: string, rawValue: string) => {
       let value = rawValue;
       if (property.toLowerCase() === "font-family") {
