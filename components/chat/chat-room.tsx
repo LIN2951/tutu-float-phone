@@ -580,6 +580,7 @@ type ChatRoomProps = {
     onBack: () => void;
     /** 会话在设置页被删除后回调：由外层卸载本聊天室并回到列表 */
     onDeleted?: () => void;
+    active?: boolean;
 };
 
 type OfflineActionTarget = {
@@ -1254,7 +1255,7 @@ const OfflineTextInputBar = memo(forwardRef<OfflineTextInputHandle, React.Compon
 }));
 
 
-export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
+export function ChatRoom({ session, onBack, onDeleted, active = true }: ChatRoomProps) {
     const reverseControl=useReverseVisit();
     const reverseWindow=reverseControl?.messageWindows?.[session.id]?.join("|");
     useEffect(()=>{if(!reverseControl)return;const all=loadChatMessages(session.id);const ids=activeReverse()?.messageWindows?.[session.id];setMessages(ids?all.filter(m=>ids.includes(m.id)):all.slice(-50));},[session.id,reverseControl?.id,reverseWindow]);
@@ -5990,10 +5991,10 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         <div ref={wrapperRef} className={`session-${session.id} chat-room-wrapper page-shell inset-0 flex flex-col z-20`} style={chatRoomBackgroundStyle} data-offline-mode={offlineMode ? "true" : "false"} data-offline-notes={offlineMode ? "true" : undefined} {...(bgLoading ? { "data-loading": "" } : {})} {...(bgImageResolved ? { "data-has-bg-image": "" } : {})} {...(showSettings ? { "data-settings-open": "" } : {})}>
             {/* CSS priority: session > global chat info > homepage appearance CSS. */}
             {globalChatCSS && (
-                <SessionCustomCSS css={globalChatCSS} scope={`.session-${session.id}`} />
+                <SessionCustomCSS css={globalChatCSS} scope={`.session-${session.id}`} active={active} />
             )}
             {liveCSS && (
-                <SessionCustomCSS css={liveCSS} scope={`.session-${session.id}`} />
+                <SessionCustomCSS css={liveCSS} scope={`.session-${session.id}`} active={active} />
             )}
 
             {/* 全屏特效层（表情雨/礼花），不拦截任何触摸操作 */}
