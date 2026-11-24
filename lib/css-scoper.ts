@@ -147,7 +147,7 @@ function rewriteCssDeclarations(
         });
       } else {
         for (const [name, renamed] of keyframes) {
-          value = value.replace(new RegExp("(^|[^\\\\w-])" + escapeRegExp(name) + "(?=$|[^\\\\w-])", "g"), (_m, before) => before + renamed);
+          value = value.replace(new RegExp("(^|[^\\w-])" + escapeRegExp(name) + "(?=$|[^\\w-])", "g"), (_m, before) => before + renamed);
         }
       }
       return prefix + property + ": " + value;
