@@ -135,7 +135,7 @@ function rewriteCssDeclarations(
   fontFamilies: Map<string, string>,
 ): string {
   return block.replace(
-    /(^|[;{]\s*)(animation(?:-name)?|font-family)\s*:\s*([^;{}]*)(?=;|[{}])/gi,
+    /(^|[;{]\s*)(-webkit-animation(?:-name)?|animation(?:-name)?|font-family)\s*:\s*([^;{}]*)(?=;|[{}])/gi,
     (_match, prefix: string, property: string, rawValue: string) => {
       let value = rawValue;
       if (property.toLowerCase() === "font-family") {
