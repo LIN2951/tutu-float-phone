@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "components/desktop-shell.tsx"
+      - "components/main-app.tsx"
       - "components/chat/phone-chat-app.tsx"
       - "lib/chat-db.ts"
       - "lib/chat-storage.ts"
