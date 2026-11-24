@@ -372,6 +372,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
                     <Suspense fallback={<div className="flex h-full w-full items-center justify-center text-[var(--c-sub)] text-sm">正在打开聊天…</div>}>
                         <ChatRoom
                             session={sess}
+                            active={activeSession?.id === sess.id}
                             onBack={() => setActiveSession(null)}
                             onDeleted={() => {
                                 // 会话已删除：把缓存的聊天室一并卸载，避免僵尸挂载
