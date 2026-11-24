@@ -12,6 +12,7 @@ on:
       - "lib/chat-storage.ts"
       - "lib/kv-db.ts"
       - "components/chat/chat-room.tsx"
+      - "styles/chat.css"
       - "components/chat/chat-contacts-list.tsx"
       - "components/ui/session-custom-css.tsx"
       - "components/chat/chat-settings-panel.tsx"
