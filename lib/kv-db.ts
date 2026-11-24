@@ -13,6 +13,21 @@ class KvDatabase extends Dexie {
 }
 
 const kvDb = new KvDatabase();
+const recoveryDb = new Dexie("AiPhoneRecoveryDB");
+recoveryDb.version(2).stores({ snapshots: "id, createdAt", entries: "key" });
+
+async function mirrorKvPut(entries: Array<{ key: string; value: string }>): Promise<void> {
+    if (entries.length) await recoveryDb.table("entries").bulkPut(entries);
+}
+async function mirrorKvDelete(key: string): Promise<void> {
+    await recoveryDb.table("entries").delete(key);
+}
+async function loadKvRecoveryEntries(): Promise<Array<{ key: string; value: string }>> {
+    const mirrored = await recoveryDb.table("entries").toArray() as Array<{ key: string; value: string }>;
+    if (mirrored.length) return mirrored;
+    const legacy = await recoveryDb.table("snapshots").get("float-1.0.1") as ({ entries?: Array<{ key: string; value: string }> } | undefined);
+    return Array.isArray(legacy?.entries) ? legacy.entries : [];
+}
 
 // ── In-memory cache ──
 const _cache = new Map<string, string>();
@@ -45,7 +60,7 @@ function migrateLegacyKey(lsKey: string): void {
     if (raw === null) return;
     if (_cache.get(lsKey) !== raw) {
         _cache.set(lsKey, raw);
-        kvDb.entries.put({ key: lsKey, value: raw }).then(()=>removeLegacyLocalStorageKeyIfValue(lsKey,raw)).catch(err=>reportStorageFailure(err));
+        kvDb.entries.put({ key: lsKey, value: raw }).then(async () => { await mirrorKvPut([{ key: lsKey, value: raw }]); removeLegacyLocalStorageKeyIfValue(lsKey,raw); }).catch(err=>reportStorageFailure(err));
     }
     // Legacy bytes are removed only after successful IndexedDB commit.
 }
@@ -119,8 +134,16 @@ export function hydrateKvDb(): Promise<void> {
     if (_hydrated || typeof window === "undefined") return Promise.resolve();
     if (_hydratePromise) return _hydratePromise;
     _hydratePromise = (async () => {
-        // Load existing IDB data into cache
-        const all = await kvDb.entries.toArray();
+        // Recover an unexpectedly empty live KV store before exposing empty caches.
+        let all = await kvDb.entries.toArray();
+        if (all.length === 0) {
+            const recovered = await loadKvRecoveryEntries();
+            if (recovered.length) {
+                await kvDb.entries.bulkPut(recovered);
+                all = recovered;
+                console.warn("[KvDB] Restored empty key-value storage from independent recovery data.");
+            }
+        }
         _cache.clear();
         await saveKvRecoveryCheckpoint(all).catch(reportStorageFailure);
 
@@ -157,7 +180,7 @@ export function hydrateKvDb(): Promise<void> {
             }
         }
 
-        if (batch.length > 0) await kvDb.entries.bulkPut(batch);
+        if (batch.length > 0) { await kvDb.entries.bulkPut(batch); await mirrorKvPut(batch); }
         for (const k of removeKeys) localStorage.removeItem(k);
     })().then(() => {
         _hydrated = true;
@@ -199,7 +222,8 @@ export function kvSet(key: string, value: string): void {
 
     _cache.set(key, value);
     if (isManagedLegacyKey(key)) writeFallbackLocalStorage(key, value);
-    kvDb.entries.put({ key, value }).then(() => {
+    kvDb.entries.put({ key, value }).then(async () => {
+        await mirrorKvPut([{ key, value }]);
         if(dirtyWrites.get(key)===value)dirtyWrites.delete(key);
         if (isManagedLegacyKey(key)) removeLegacyLocalStorageKeyIfValue(key, value);
     }).catch(err => {
@@ -218,6 +242,7 @@ export async function kvSetAsync(key: string, value: string): Promise<void> {
     if (isManagedLegacyKey(key)) writeFallbackLocalStorage(key, value);
     try {
         await kvDb.entries.put({ key, value });
+        await mirrorKvPut([{ key, value }]);
         if (isManagedLegacyKey(key)) removeLegacyLocalStorageKeyIfValue(key, value);
     } catch (err) {
         writeFallbackLocalStorage(key, value);
@@ -234,7 +259,7 @@ export function kvRemove(key: string): void {
     if(!_hydrated)throw new Error("本地数据读取尚未完成，不能删除");
     _cache.delete(key);
     if (isManagedLegacyKey(key)) removeLegacyLocalStorageKey(key);
-    kvDb.entries.delete(key).catch(err =>
+    kvDb.entries.delete(key).then(() => mirrorKvDelete(key)).catch(err =>
         console.warn("[KvDB] delete failed:", key, err));
 }
 
@@ -253,7 +278,7 @@ export function kvEntries(): Array<{ key: string; value: string }> {
 
 const dirtyWrites=new Map<string,string>();
 export function reportStorageFailure(error:unknown){if(typeof window!=="undefined")window.dispatchEvent(new CustomEvent("local-storage-failure",{detail:{message:"本地保存失败，请保持应用打开，重试保存或导出备份。"}}));console.warn("[Storage] write failed",error);}
-export async function flushKvWrites(){for(const [key,value] of dirtyWrites){await kvDb.entries.put({key,value});if(dirtyWrites.get(key)===value)dirtyWrites.delete(key);}}
+export async function flushKvWrites(){for(const [key,value] of dirtyWrites){await kvDb.entries.put({key,value});await mirrorKvPut([{key,value}]);if(dirtyWrites.get(key)===value)dirtyWrites.delete(key);}}
 /** Retain two KV checkpoints before version changes, never silently restore or clear live data. Media databases remain untouched. */
 async function saveKvRecoveryCheckpoint(entries:Array<{key:string;value:string}>){
  if(!entries.length||typeof window==="undefined")return;
