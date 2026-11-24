@@ -4115,7 +4115,14 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
     // Re-enable the transition, clear the finger offset, and commit the page.
     // currentPageIndex is the single source of truth → CSS settles to it, no race.
     swipeLayerRef.current?.classList.remove("phone-swipe-dragging");
-    setSwipeDrag(0);
+    // Flush the final offset before committing the page so the settle transition
+    // starts from the exact finger position (not one animation frame behind).
+    swipeDragPendingRef.current = 0;
+    if (swipeDragRafRef.current !== null) {
+      window.cancelAnimationFrame(swipeDragRafRef.current);
+      swipeDragRafRef.current = null;
+    }
+    swipeLayerRef.current?.style.setProperty("--swipe-drag", "0px");
     if (targetPageIndex !== page) setCurrentPageIndex(targetPageIndex);
   }, [editMode, pageCount, setSwipeDrag]);
 
