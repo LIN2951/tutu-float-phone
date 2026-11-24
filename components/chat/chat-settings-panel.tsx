@@ -2177,7 +2177,7 @@ export function ChatSettingsPanel({
                             <div className="flex gap-2 mt-3 items-center">
                                 <CSSSchemeBar includeChatBuiltins target="chat_session" currentCSS={customCSS} onLoad={setCustomCSS} />
                                 <button type="button" className="ui-btn ui-btn-outline flex-1" onClick={() => setCustomCSS(CHAT_SESSION_CSS_EXAMPLE)}>示例</button>
-                                <button type="button" className="ui-btn ui-btn-outline flex-1" onClick={() => setCustomCSS("")}>清除</button>
+                                <button type="button" className="ui-btn ui-btn-outline flex-1" onClick={() => { setCustomCSS(""); updateSession({ customCSS: "" }); window.dispatchEvent(new CustomEvent("chat-session-css-updated", { detail: { sessionId: session.id, css: "" } })); }}>清除</button>
                                 <button type="button" className="ui-btn ui-btn-soft-action flex-1" onClick={() => { updateSession({ customCSS }); window.dispatchEvent(new CustomEvent("chat-session-css-updated", { detail: { sessionId: session.id, css: customCSS } })); setEditingCSS(false); }}>应用</button>
                             </div>
                         </div>
