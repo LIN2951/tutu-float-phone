@@ -226,6 +226,18 @@ export function MainApp() {
   const [hydrated, setHydrated] = useState(false);
   const [preparedPhoneLock, setPreparedPhoneLock] = useState<PreparedPhoneLock | null>(null);
   useEffect(() => { if (!hydrated) return; const frame = requestAnimationFrame(() => { void acknowledgeResourceStartup(); }); return () => cancelAnimationFrame(frame); }, [hydrated]);
+  useEffect(() => {
+    if (!hydrated) return;
+    let cancelled = false;
+    const cancelIdle = scheduleIdleTask(() => {
+      void warmBuiltinFonts(() => cancelled);
+    });
+    return () => {
+      cancelled = true;
+      cancelIdle();
+    };
+  }, [hydrated]);
+
   const [splashDismissed, setSplashDismissed] = useState(false);
   const [kvHydrateFailed, setKvHydrateFailed] = useState(false);
   const [initAttempt, setInitAttempt] = useState(0);
@@ -262,17 +274,23 @@ export function MainApp() {
       setKvHydrateFailed(false);
       recommendationCleanup = startContactRecommendationScheduler();
 
-      const nextPreparedLock = await preparePhoneLockForFirstPaint();
-      if (cancelled) return;
-
-      let nextPreparedTheme: PreparedDesktopTheme | null = null;
+      // Lock wallpaper and desktop theme are independent reads. Start them together
+      // so startup does not pay the sum of both IndexedDB/image decode times.
+      const lockPromise = preparePhoneLockForFirstPaint().catch((error) => {
+        console.warn("[MainApp] phone lock preload failed:", error);
+        return null;
+      });
+      let themePromise: Promise<PreparedDesktopTheme | null> = Promise.resolve(null);
       try {
         ensureBuiltinAppleFont();
-        nextPreparedTheme = await prepareDesktopThemeForFirstPaint();
+        themePromise = prepareDesktopThemeForFirstPaint().catch((error) => {
+          console.warn("[MainApp] desktop theme preload failed:", error);
+          return null;
+        });
       } catch (error) {
-        console.warn("[MainApp] desktop theme preload failed:", error);
+        console.warn("[MainApp] desktop theme setup failed:", error);
       }
-
+      const [nextPreparedLock, nextPreparedTheme] = await Promise.all([lockPromise, themePromise]);
       if (cancelled) return;
       setPreparedDesktopTheme(nextPreparedTheme);
       setPreparedPhoneLock(nextPreparedLock);
