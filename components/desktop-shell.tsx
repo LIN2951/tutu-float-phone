@@ -1457,6 +1457,8 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
     pointerId: number | null;
   }>({ startX: 0, startY: 0, deltaX: 0, pageWidth: 0, locked: null, pointerId: null });
   const swipeLayerRef = useRef<HTMLDivElement | null>(null);
+  const swipeDragRafRef = useRef<number | null>(null);
+  const swipeDragPendingRef = useRef(0);
 
   // ── Edit mode (long-press drag) ──
   const [editMode, setEditMode] = useState(false);
@@ -3920,7 +3922,19 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
   // Live finger offset while dragging — a transient CSS var so moving doesn't
   // re-render. Releasing sets it back to 0 and the CSS transition settles the page.
   const setSwipeDrag = useCallback((px: number) => {
-    swipeLayerRef.current?.style.setProperty("--swipe-drag", `${px}px`);
+    swipeDragPendingRef.current = px;
+    if (swipeDragRafRef.current !== null) return;
+    swipeDragRafRef.current = window.requestAnimationFrame(() => {
+      swipeDragRafRef.current = null;
+      swipeLayerRef.current?.style.setProperty("--swipe-drag", `${swipeDragPendingRef.current}px`);
+    });
+  }, []);
+
+  useEffect(() => () => {
+    if (swipeDragRafRef.current !== null) {
+      window.cancelAnimationFrame(swipeDragRafRef.current);
+      swipeDragRafRef.current = null;
+    }
   }, []);
 
   const handleSwipeStart = useCallback((e: React.PointerEvent) => {
