@@ -4,15 +4,11 @@ import {useAppBack} from "@/lib/back-navigation";
 import { CHAT_APPEARANCE_OPEN, loadChatNightMode, saveChatNightMode } from "@/lib/chat-appearance";
 import "@/styles/chat-night.css";
 
-import { memo, lazy, Suspense, useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import { ChatMessageList } from "./chat-message-list";
 import { ChatContactsList } from "./chat-contacts-list";
 import { MomentsFeed } from "./moments-feed";
-// Start downloading and parsing the heavy room module as soon as the chat app chunk loads,
-// not after the user taps a conversation. This removes the multi-second Suspense wait
-// from the first room open while keeping the room out of the phone desktop bundle.
-const chatRoomModule = import("./chat-room");
-const ChatRoom = lazy(() => chatRoomModule.then(module => ({ default: module.ChatRoom })));
+import { ChatRoom } from "./chat-room";
 import { MascotChatRoom } from "./mascot-chat-room";
 import { UserProfilePanel } from "./user-profile-panel";
 import { ChatSession, loadChatSessions, pushChatMessage, hydrateChatStorage, markChatSessionRead, setActiveChatSessionId } from "@/lib/chat-storage";
@@ -409,7 +405,6 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
             {/* Chat Rooms — all visited sessions stay mounted, only active one is visible */}
             {[...visitedSessions.values()].map(sess => (
                 <div key={sess.id} style={{ display: activeSession?.id === sess.id ? undefined : 'none' }} className="chat-room-layer absolute inset-0">
-                    <Suspense fallback={<div className="flex h-full w-full flex-col overflow-hidden bg-[var(--c-bg)]" role="status" aria-live="polite" aria-busy="true"><div className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--c-border)] px-4"><button type="button" className="text-[var(--c-text)]" onClick={() => setActiveSession(null)} aria-label="返回">‹</button><span className="text-sm font-semibold text-[var(--c-text)]">{(sess as ChatSession & { alias?: string }).alias || "聊天"}</span></div><div className="flex flex-1 flex-col gap-4 p-4"><div className="h-10 w-3/5 animate-pulse rounded-lg bg-[var(--c-border)]" /><div className="h-16 w-4/5 animate-pulse self-end rounded-2xl bg-[var(--c-border)]" /><div className="h-14 w-2/3 animate-pulse rounded-2xl bg-[var(--c-border)]" /><span className="text-center text-xs text-[var(--c-sub)]">正在载入消息</span></div></div>}>
                         <ChatRoom
                             session={sess}
                             active={activeSession?.id === sess.id}
@@ -424,7 +419,6 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
                                 setActiveSession(null);
                             }}
                         />
-                    </Suspense>
                 </div>
             ))}
             {activeMascot && (
