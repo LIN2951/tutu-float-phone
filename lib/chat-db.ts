@@ -32,6 +32,42 @@ const LS_SESSIONS_KEY = "ai_phone_chat_sessions_v1";
 const LS_CONTACTS_KEY = "ai_phone_chat_contacts_v1";
 const LS_MIGRATED_FLAG = "ai_phone_idb_migrated_v1";
 
+const CHAT_RECOVERY_DB = "AiPhoneChatRecoveryDB";
+const CHAT_RECOVERY_SNAPSHOT_ID = "latest";
+
+async function saveChatRecoverySnapshot(data: { messages: ChatMessage[]; sessions: ChatSession[]; contacts: ChatContact[] }): Promise<void> {
+    if (data.messages.length + data.sessions.length + data.contacts.length === 0) return;
+    const recovery = new Dexie(CHAT_RECOVERY_DB);
+    recovery.version(1).stores({ snapshots: "id, createdAt" });
+    try {
+        await recovery.open();
+        await recovery.table('snapshots').put({ id: CHAT_RECOVERY_SNAPSHOT_ID, createdAt: Date.now(), ...data });
+    } finally { recovery.close(); }
+}
+
+async function restoreChatRecoverySnapshot(): Promise<{ messages: ChatMessage[]; sessions: ChatSession[]; contacts: ChatContact[] } | null> {
+    const recovery = new Dexie(CHAT_RECOVERY_DB);
+    recovery.version(1).stores({ snapshots: "id, createdAt" });
+    try {
+        await recovery.open();
+        const snapshot = await recovery.table('snapshots').get(CHAT_RECOVERY_SNAPSHOT_ID) as ({ messages?: ChatMessage[]; sessions?: ChatSession[]; contacts?: ChatContact[] } | undefined);
+        if (!snapshot) return null;
+        const data = { messages: Array.isArray(snapshot.messages) ? snapshot.messages : [], sessions: Array.isArray(snapshot.sessions) ? snapshot.sessions : [], contacts: Array.isArray(snapshot.contacts) ? snapshot.contacts : [] };
+        if (data.messages.length + data.sessions.length + data.contacts.length === 0) return null;
+        await chatDb.transaction("rw", chatDb.messages, chatDb.sessions, chatDb.contacts, async () => {
+            await chatDb.messages.bulkPut(data.messages);
+            await chatDb.sessions.bulkPut(data.sessions);
+            await chatDb.contacts.bulkPut(data.contacts);
+        });
+        console.warn("[ChatDB] Restored empty live DB from recovery snapshot.");
+        return data;
+    } finally { recovery.close(); }
+}
+
+async function checkpointChatData(data: { messages: ChatMessage[]; sessions: ChatSession[]; contacts: ChatContact[] }): Promise<void> {
+    await saveChatRecoverySnapshot(data).catch(err => { console.warn('[ChatDB] Recovery snapshot write failed:', err); reportStorageFailure(err); });
+}
+
 /**
  * Initialize IndexedDB and migrate data from localStorage if needed.
  * Returns the loaded data for the in-memory caches.
@@ -87,9 +123,16 @@ export async function initChatDb(): Promise<{
             // 标记写失败（localStorage 配额满）只是性能问题，绝不能连带
             // 丢弃已读出的 IndexedDB 数据。
             markMigrated();
+            const data = { messages, sessions, contacts };
+            await checkpointChatData(data);
             console.log(`[ChatDB] Migration flag missing but IndexedDB has data; reusing it: ${messages.length} messages, ${sessions.length} sessions, ${contacts.length} contacts`);
-            return { messages, sessions, contacts };
+            return data;
         }
+
+        // Migration metadata can disappear independently from live data.
+        // Try the isolated recovery copy before declaring this a new install.
+        const recovered = await restoreChatRecoverySnapshot();
+        if (recovered) { markMigrated(); return recovered; }
 
         // First run after migration: move localStorage data → IndexedDB
         try {
@@ -117,9 +160,10 @@ export async function initChatDb(): Promise<{
             window.localStorage.removeItem(LS_SESSIONS_KEY);
             window.localStorage.removeItem(LS_CONTACTS_KEY);
 
+            const migrated = { messages: lsMessages, sessions: lsSessions, contacts: lsContacts };
+            await checkpointChatData(migrated);
             console.log(`[ChatDB] Migrated from localStorage: ${lsMessages.length} messages, ${lsSessions.length} sessions, ${lsContacts.length} contacts`);
-
-            return { messages: lsMessages, sessions: lsSessions, contacts: lsContacts };
+            return migrated;
         } catch (err) {
             console.error("[ChatDB] Migration failed, falling back to localStorage:", err);
             // If migration fails, load from localStorage as fallback
@@ -130,11 +174,14 @@ export async function initChatDb(): Promise<{
         }
     }
 
-    // Already migrated: load from IndexedDB (with retries)
+    // An unexpectedly empty live DB is not assumed to be a fresh install.
     const loaded = await loadFromIndexedDbWithRetries();
-    if (!loaded) {
-        throw new Error("[ChatDB] Failed to load after 3 attempts");
+    if (!loaded) throw new Error("[ChatDB] Failed to load after 3 attempts");
+    if (alreadyMigrated && loaded.messages.length + loaded.sessions.length + loaded.contacts.length === 0) {
+        const recovered = await restoreChatRecoverySnapshot();
+        if (recovered) { markMigrated(); return recovered; }
     }
+    await checkpointChatData(loaded);
     return loaded;
 }
 
