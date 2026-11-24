@@ -247,7 +247,7 @@ function safeParse<T>(raw: string | null): T[] {
 export function dbPutMessage(msg: ChatMessage): void {
     pendingMessages.set(msg.id,msg);
     chatDb.messages.put(msg).then(()=>{if(pendingMessages.get(msg.id)===msg)pendingMessages.delete(msg.id);}).catch(err => { console.warn("[ChatDB] put message failed:",err);reportStorageFailure(err); });
-    mirrorRecoveryWrite(() => (new Dexie(CHAT_RECOVERY_DB)).table("messages").put(msg));
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("messages").put(msg); } finally { db.close(); } });
 }
 
 export function dbPutMessages(msgs: ChatMessage[]): void {
@@ -264,6 +264,9 @@ export async function dbBulkPutMessages(msgs: ChatMessage[]): Promise<void> {
     for (let start = 0; start < msgs.length; start += DB_BULK_PUT_CHUNK) {
         await chatDb.messages.bulkPut(msgs.slice(start, start + DB_BULK_PUT_CHUNK));
     }
+    const db = new Dexie(CHAT_RECOVERY_DB);
+    db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" });
+    try { for (let start = 0; start < msgs.length; start += DB_BULK_PUT_CHUNK) await db.table("messages").bulkPut(msgs.slice(start, start + DB_BULK_PUT_CHUNK)); } finally { db.close(); }
 }
 
 export function dbDeleteMessage(id: string): void {
@@ -276,11 +279,13 @@ export function dbDeleteMessagesBySession(sessionId: string): void {
     for(const [id,m] of pendingMessages)if(m.sessionId===sessionId)pendingMessages.delete(id);
     chatDb.messages.where("sessionId").equals(sessionId).delete()
         .catch(err => { console.warn("[ChatDB] delete session messages failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("messages").where("sessionId").equals(sessionId).delete(); } finally { db.close(); } });
 }
 
 export function dbDeleteMessagesByIds(ids: string[]): void {
     for(const id of ids)pendingMessages.delete(id);
     chatDb.messages.bulkDelete(ids).catch(err => { console.warn("[ChatDB] bulkDelete messages failed:",err);reportStorageFailure(err); });
+    mirrorRecoveryWrite(async () => { const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("messages").bulkDelete(ids); } finally { db.close(); } });
 }
 
 export function dbPutSession(session: ChatSession): void {
@@ -325,4 +330,4 @@ export function dbReplaceContacts(contacts: ChatContact[]): void {
 }
 
 const pendingMessages=new Map<string,ChatMessage>();
-export async function flushPendingChatMessages(){for(const [id,message] of pendingMessages){await chatDb.messages.put(message);if(pendingMessages.get(id)===message)pendingMessages.delete(id);}}
+export async function flushPendingChatMessages(){for(const [id,message] of pendingMessages){await chatDb.messages.put(message);if(pendingMessages.get(id)===message)pendingMessages.delete(id);} const db = new Dexie(CHAT_RECOVERY_DB); db.version(2).stores({ snapshots: "id, createdAt", messages: "id, sessionId, createdAt", sessions: "id, contactId", contacts: "id, characterId" }); try { await db.table("messages").bulkPut(Array.from(pendingMessages.values())); } finally { db.close(); }}
