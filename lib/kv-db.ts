@@ -282,6 +282,6 @@ export async function flushKvWrites(){for(const [key,value] of dirtyWrites){awai
 /** Retain two KV checkpoints before version changes, never silently restore or clear live data. Media databases remain untouched. */
 async function saveKvRecoveryCheckpoint(entries:Array<{key:string;value:string}>){
  if(!entries.length||typeof window==="undefined")return;
- const version="float-1.0.1";const db=new Dexie("AiPhoneRecoveryDB");db.version(1).stores({snapshots:"id,createdAt"});
+ const version="float-1.0.1";const db=new Dexie("AiPhoneRecoveryDB");db.version(2).stores({snapshots:"id,createdAt",entries:"key"});
  try{const table=db.table("snapshots");if(await table.get(version))return;await table.put({id:version,createdAt:Date.now(),entries});const rows=await table.orderBy("createdAt").reverse().toArray();for(const old of rows.slice(2))await table.delete(old.id);}finally{db.close();}
 }
