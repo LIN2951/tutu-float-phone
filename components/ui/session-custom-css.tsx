@@ -14,7 +14,7 @@ import { extractCssImports, scopeSessionCSS } from "@/lib/css-scoper";
  * 外部样式链接由组件自行创建并在 CSS 替换/组件卸载时清理，避免旧美化的
  * @import 样式表残留；字体加载失败只影响字体本身，不会挂起其余自定义样式。
  */
-export function SessionCustomCSS({ css, scope }: { css: string; scope: string }) {
+export function SessionCustomCSS({ css, scope, active = true }: { css: string; scope: string; active?: boolean }) {
     const { imports, body } = useMemo(() => {
         const extracted = extractCssImports(css || "");
         return { imports: extracted.imports, body: extracted.css };
@@ -26,6 +26,7 @@ export function SessionCustomCSS({ css, scope }: { css: string; scope: string })
     // old imported stylesheets active when users switch beautification schemes.
     // Own these links imperatively so every CSS replacement removes the previous set.
     useLayoutEffect(() => {
+        if (!active || imports.length === 0) return;
         const ownedLinks = imports.map((href) => {
             const link = document.createElement("link");
             link.rel = "stylesheet";
@@ -37,7 +38,7 @@ export function SessionCustomCSS({ css, scope }: { css: string; scope: string })
         return () => {
             ownedLinks.forEach((link) => link.remove());
         };
-    }, [imports]);
+    }, [imports, active]);
 
     return scoped ? <style data-float-session-css={scope} dangerouslySetInnerHTML={{ __html: scoped }} /> : null;
 }
