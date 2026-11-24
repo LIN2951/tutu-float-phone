@@ -293,6 +293,24 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
 
     // Render an immediate lightweight shell while IndexedDB hydrates. Returning null
     // here left the entire chat app blank for the full database-read duration.
+    if (!dbReady && dbLoadError) {
+        return (
+            <div ref={appRoot} data-chat-theme={nightMode ? "dark" : "light"} className="chat-app absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 overflow-hidden bg-[var(--c-bg)] px-6 text-center" role="alert">
+                <div className="text-base font-semibold text-[var(--c-text)]">聊天资料暂时无法读取</div>
+                <p className="max-w-sm text-sm text-[var(--c-sub)]">为保护原有资料，Float 已暂停加载和保存，没有把空白数据当成新账号。请重试读取，不要清除应用数据或浏览器缓存。</p>
+                <button type="button" className="rounded-full border border-[var(--c-border)] px-5 py-2 text-sm text-[var(--c-text)]" onClick={() => {
+                    setDbLoadError(false);
+                    hydrateChatStorage().then(() => {
+                        setNightMode(loadChatNightMode());
+                        setDbReady(true);
+                    }).catch(err => {
+                        console.error("[PhoneChatApp] chat database retry failed:", err);
+                        setDbLoadError(true);
+                    });
+                }}>重试读取资料</button>
+            </div>
+        );
+    }
     if (!dbReady) {
         return (
             <div ref={appRoot} data-chat-theme={nightMode ? "dark" : "light"} className="chat-app absolute inset-0 z-10 flex flex-col overflow-hidden bg-[var(--c-bg)]" role="status" aria-live="polite" aria-busy="true">
