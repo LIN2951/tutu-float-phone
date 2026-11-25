@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, ChevronLeft, Hand, Headphones, Maximize2, MessageSquare, MoreHorizontal, Phone, PhoneOff, Settings, Smile, Sparkles, Users, Video, Volume2, X } from "lucide-react";
+import { ChevronLeft, Hand, Headphones, Maximize2, MessageSquare, MoreHorizontal, Phone, PhoneOff, Settings, Smile, Sparkles, Users, Video, Volume2, X } from "lucide-react";
 import { CallTranscriptBubble } from "./call-transcript-bubble";
 export type VoiceCallLine = { id: string; role: "user" | "assistant"; text: string };
 export function TranscriptCard({ name, avatar, lines, roundStart, playingId, busy, onPlay, onSelect, avatarHeader, positions, personKey }: {
@@ -11,37 +11,21 @@ export function TranscriptCard({ name, avatar, lines, roundStart, playingId, bus
     const scroll = useRef<HTMLDivElement>(null);
     const restored = useRef(false);
     useEffect(() => () => { if (positions && personKey && scroll.current) positions.set(personKey, scroll.current.scrollTop); }, [positions, personKey]);
-    const following = useRef(true);
     const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
     const origin = useRef({ x: 0, y: 0 });
-    const [hasNew, setHasNew] = useState(false);
-    const [resume, setResume] = useState(0);
     const cancelHold = () => { if (hold.current) clearTimeout(hold.current); hold.current = null; };
-    const pauseFollow = () => { following.current = false; setHasNew(true); };
     useEffect(() => () => cancelHold(), []);
     useEffect(() => {
+        if (restored.current) return;
         const element = scroll.current;
-        if (!element || !lines.length) return;
-        if (!restored.current) { restored.current = true; const position = personKey ? positions?.get(personKey) : undefined; if (position !== undefined) { element.scrollTop = position; following.current = false; return; } }
-        if (!following.current) { setHasNew(true); return; }
-        setHasNew(false);
-        const first = roundStart && element.querySelector<HTMLElement>(`[data-line-id="${CSS.escape(roundStart)}"]`);
-        element.scrollTop = first ? first.offsetTop : element.scrollHeight;
-        if (!roundStart) return;
-        let frame = 0, previous = 0, position = element.scrollTop;
-        const advance = (now: number) => {
-            if (!following.current) return;
-            if (previous) position += Math.min(now - previous, 100) * .025;
-            previous = now;
-            element.scrollTop = position;
-            if (position < element.scrollHeight - element.clientHeight) frame = requestAnimationFrame(advance);
-        };
-        frame = requestAnimationFrame(advance);
-        return () => cancelAnimationFrame(frame);
-    }, [lines.length, roundStart, resume]);
+        if (!element) return;
+        restored.current = true;
+        const position = personKey ? positions?.get(personKey) : undefined;
+        if (position !== undefined) element.scrollTop = position;
+    }, [positions, personKey]);
     return <section className="chat-call-person-card">
         {avatarHeader || <div className="chat-call-card-avatar">{avatar ? <img src={avatar} alt={name}/> : <span>{name[0] || "?"}</span>}</div>}
-        <div className="chat-call-card-transcript" ref={scroll} onScroll={() => { if (positions && personKey && scroll.current) positions.set(personKey, scroll.current.scrollTop); }} onWheel={pauseFollow} onTouchStart={pauseFollow} onKeyDown={e => { if (["ArrowUp","ArrowDown","PageUp","PageDown","Home","End"].includes(e.key)) pauseFollow(); }} tabIndex={0} aria-label={`${name}的通话内容`}>
+        <div className="chat-call-card-transcript" ref={scroll} onScroll={() => { if (positions && personKey && scroll.current) positions.set(personKey, scroll.current.scrollTop); }} tabIndex={0} aria-label={`${name}的通话内容`}>
             {lines.map(line => <div key={line.id} data-line-id={line.id} className="chat-call-line"
                 onContextMenu={e => { if (!onSelect) return; e.preventDefault(); cancelHold(); onSelect(line.id); }}
                 onPointerDown={e => { if (!onSelect || (e.target as HTMLElement).closest("button")) return; cancelHold(); origin.current = { x:e.clientX,y:e.clientY }; hold.current = setTimeout(() => { onSelect(line.id); hold.current = null; }, 550); }}
@@ -52,7 +36,6 @@ export function TranscriptCard({ name, avatar, lines, roundStart, playingId, bus
             {!lines.length && <p className="chat-call-empty">等待通话内容</p>}
         </div>
         <footer className="chat-call-card-footer"><strong>{name}</strong>{playingId && lines.some(l => l.id === playingId) && <span className="chat-call-wave" aria-label="正在播放"><i/><i/><i/></span>}</footer>
-        {hasNew && <button className="chat-call-follow" onClick={() => { following.current=true; setResume(v=>v+1); }}><ArrowDown size={12}/>跟随最新</button>}
     </section>;
 }
 export function VoiceCallLayout(props: {

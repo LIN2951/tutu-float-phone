@@ -68,6 +68,7 @@ import { CheckPhoneTelegramPage } from "@/components/checkphone/checkphone-teleg
 import { CheckPhoneTakeoutPage } from "@/components/checkphone/checkphone-takeout-page";
 import { CheckPhoneWeiboPage } from "@/components/checkphone/checkphone-weibo-page";
 import { CheckPhoneXiaohongshuPage } from "@/components/checkphone/checkphone-xiaohongshu-page";
+import { CheckPhoneYoutubePage } from "@/components/checkphone/checkphone-youtube-page";
 import { CheckPhoneXPage } from "@/components/checkphone/checkphone-x-page";
 import { loadCharacters } from "@/lib/character-storage";
 import type { Character } from "@/lib/character-types";
@@ -135,6 +136,7 @@ const CHECKPHONE_EMBEDDED_APP_IDS = [
   "steam",
   "x",
   "reddit",
+  "youtube",
   "instagram",
   "bilibili",
   "douban",
@@ -197,6 +199,12 @@ const IconSolidBook = ({ size = 32 }: { size?: number | string }) => (
     <path d="M11.25 4.533A9.707 9.707 0 006 3a9.735 9.735 0 00-3.25.555.75.75 0 00-.5.707v14.25a.75.75 0 001 .707A8.237 8.237 0 016 18.75c1.995 0 3.823.707 5.25 1.886V4.533zM12.75 20.636A8.214 8.214 0 0118 18.75c.966 0 1.89.166 2.75.47a.75.75 0 001-.708V4.262a.75.75 0 00-.5-.707A9.735 9.735 0 0018 3a9.707 9.707 0 00-5.25 1.533v16.103z" />
   </svg>
 );
+const IconSolidYoutube = ({ size = 32 }: { size?: number | string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+    <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm14.024-.983a1.125 1.125 0 010 1.966l-5.603 3.113A1.125 1.125 0 019 15.113V8.887c0-.857.921-1.4 1.671-.983l5.603 3.113z" clipRule="evenodd" />
+  </svg>
+);
+
 const IconSolidMusic = ({ size = 32 }: { size?: number | string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
     <path fillRule="evenodd" d="M19.364 3.208a.75.75 0 00-.916-.145l-9 4.09A.75.75 0 009 7.844v8.283a3.5 3.5 0 101.5 2.873v-7.14l7.5-3.41v5.127a3.5 3.5 0 101.5 2.873V3.75a.75.75 0 00-.136-.542z" clipRule="evenodd" />
@@ -265,6 +273,7 @@ function AppGlyph({ appId, size = 26, strokeWidth = 1.5 }: { appId: CheckPhoneAp
     case "music": return <IconSolidMusic size={size} />;
     case "x": return <IconSolidX size={size} />;
     case "reddit": return <IconSolidGlobe size={size} />;
+    case "youtube": return <IconSolidYoutube size={size} />;
     case "bilibili": return <IconSolidTv size={size} />;
     case "instagram": return <IconSolidCamera size={size} />;
     case "telegram": return <IconSolidSend size={size} />;
@@ -279,7 +288,7 @@ function getAppIconClass(appId: CheckPhoneAppId, isDock = false) {
   // Interspersed distribution to ensure grey icons don't cluster in one column
   const midGreyApps: string[] = ["photos", "weibo", "steam", "telegram", "reddit"];
   const lightGreyApps: string[] = ["messages", "bilibili", "xiaohongshu", "email", "instagram"];
-  const whiteApps: string[] = ["browser", "douyin", "reading", "notes", "shopping", "assets"];
+  const whiteApps: string[] = ["browser", "douyin", "reading", "notes", "shopping", "assets", "youtube"];
 
   if (midGreyApps.includes(appId)) return `${baseClass} cp-app-icon--mid-grey`;
   if (lightGreyApps.includes(appId)) return `${baseClass} cp-app-icon--light-grey`;
@@ -542,6 +551,8 @@ export function CheckPhoneApp({ onClose }: CheckPhoneAppProps) {
         return <CheckPhoneSteamPage character={activeCharacter} onBack={closeSelectedApp} />;
       case "x":
         return <CheckPhoneXPage character={activeCharacter} onBack={closeSelectedApp} />;
+      case "youtube":
+        return <CheckPhoneYoutubePage character={activeCharacter} onBack={closeSelectedApp} />;
       case "reddit":
         return <CheckPhoneRedditPage character={activeCharacter} onBack={closeSelectedApp} />;
       case "instagram":

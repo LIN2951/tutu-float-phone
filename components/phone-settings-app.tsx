@@ -122,6 +122,7 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
     const [timeAware, setTimeAware] = useState(true);
     const [promptViewerEnabled, setPromptViewerEnabled] = useState(false);
     const [quickActionEnabled, setQuickActionEnabled] = useState(false);
+    const [errorDiagnosticsEnabled, setErrorDiagnosticsEnabled] = useState(false);
     const [floatingDockEnabled, setFloatingDockEnabled] = useState(false);
     const [floatingDockSheetOpen, setFloatingDockSheetOpen] = useState(false);
     const [keepAlive, setKeepAlive] = useState(false);
@@ -249,6 +250,12 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
         onNotice(next ? "已开启快捷操作" : "已关闭快捷操作");
     }, [onNotice]);
 
+    const handleErrorDiagnosticsChange = useCallback((next: boolean) => {
+        setErrorDiagnosticsEnabled(next);
+        saveChatAppSettings({ ...loadChatAppSettings(), errorDiagnosticsEnabled: next });
+        onNotice(next ? "错误诊断已开启，请再试一次刚才的操作" : "错误诊断已关闭");
+    }, [onNotice]);
+
     const handleFloatingDockChange = useCallback((next: boolean) => {
         setFloatingDockEnabled(next);
         saveChatAppSettings({ ...loadChatAppSettings(), floatingDockEnabled: next });
@@ -367,6 +374,7 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
         setTimeAware(settings.timeAware !== false);
         setPromptViewerEnabled(settings.promptViewerEnabled === true);
         setQuickActionEnabled(settings.quickActionEnabled === true);
+        setErrorDiagnosticsEnabled(settings.errorDiagnosticsEnabled === true);
         setFloatingDockEnabled(settings.floatingDockEnabled === true);
         
     }, []);
@@ -514,6 +522,14 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                                     <span className="menu-right settings-tools-menu-toggle">
                                         <Toggle checked={quickActionEnabled} onChange={handleQuickActionChange} className="settings-toggle-control" />
                                     </span>
+                                </div>
+                                <div className="menu-item settings-tools-menu-item">
+                                    <span className="card-icon card-icon-glass"><Activity size={20} strokeWidth={1.8} /></span>
+                                    <span className="settings-tools-menu-copy">
+                                        <span className="menu-label appearance-menu-item-label">错误诊断悬浮球</span>
+                                        <span className="menu-desc settings-tools-menu-desc">遇到报错时开启，再试一次并查看排查建议</span>
+                                    </span>
+                                    <span className="menu-right settings-tools-menu-toggle"><Toggle checked={errorDiagnosticsEnabled} onChange={handleErrorDiagnosticsChange} className="settings-toggle-control" /></span>
                                 </div>
                             </div>
                         </div>

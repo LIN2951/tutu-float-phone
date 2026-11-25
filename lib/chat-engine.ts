@@ -1,3 +1,4 @@
+import { recordErrorDiagnostic } from "./error-diagnostics";
 import {imagePromptLanguageInstruction} from './image-prompt-language';
 import { MUSIC_SHARE_FORMAT_INSTRUCTION } from "./music-share-format";
 import {inspectionIntentInstruction,extractInspectionIntent,inspectionStreamFilter} from './phone-inspection-settings';
@@ -974,7 +975,7 @@ export async function sendLLMRequest(
         includeReasoning?: boolean;
         /** 供调用方捕获模型思维链（reasoning）内容，不影响返回文本 */
         onReasoning?: (text: string) => void;
-        /** Structured Browser error diagnostics. */
+        /** Optional metadata for structured-output diagnostics; no raw content is exposed. */
         onResponseMeta?: (meta: { finishReason?: string; blockReason?: string; refusal?: boolean }) => void;
         appId?: string;
         translationCharacterId?: string;
@@ -1023,16 +1024,29 @@ export async function sendLLMRequest(
     const llmAbort = new AbortController();
     const llmTimeout = setTimeout(() => llmAbort.abort(), 500_000);
     const detachExternalAbort = attachExternalAbort(llmAbort, options?.signal);
+    const diagnosticOperation = `API · ${options?.appId || "chat"}`;
+    let diagnosticFailureRecorded = false;
 
     try {
         const response = await fetchLlmPayload(request, { signal: llmAbort.signal });
 
         if (!response.ok) {
             const errorText = await response.text();
+            recordErrorDiagnostic({operation:diagnosticOperation,error:`API Error ${response.status}`,status:response.status,actualReturn:errorText});
+            diagnosticFailureRecorded = true;
             throw new ChatEngineError(`API Error ${response.status}: ${errorText}`);
         }
 
-        const data = await response.json();
+        const responseText = await response.text();
+        let data: unknown;
+        try { data = JSON.parse(responseText); }
+        catch (error) {
+            recordErrorDiagnostic({operation:diagnosticOperation,category:"parse",error:"模型接口返回不是合法 JSON",
+                expectedFormat:"API 标准 JSON 对象",actualReturn:responseText,
+                parseFailure:error instanceof Error ? error.message : String(error)});
+            diagnosticFailureRecorded = true;
+            throw new ChatEngineError("API 返回格式不正确：无法解析 JSON");
+        }
         const parsed = parseProviderResponse(request.providerKind, data);
         if (options?.onResponseMeta) {
             const detail = emptyResponseDetails(parsed.raw);
@@ -1073,6 +1087,10 @@ export async function sendLLMRequest(
                 safetyRatings: emptyDetails.safetyRatings,
                 fullData: JSON.stringify(data).slice(0, 1000),
             });
+            recordErrorDiagnostic({operation:diagnosticOperation,category:"parse",error:emptyDetails.message,
+                expectedFormat:"包含非空文字或工具调用的模型响应",actualReturn:responseText,
+                parseFailure:"未提取到有效模型输出"});
+            diagnosticFailureRecorded = true;
             throw new ChatEngineError(emptyDetails.message);
         }
 
@@ -1093,6 +1111,7 @@ export async function sendLLMRequest(
         });
 
         if (options?.skipOutputRegex) {
+            if (pluginPurpose !== "browser" && pluginPurpose !== "checkphone_browser") recordErrorDiagnostic({operation:diagnosticOperation,succeeded:true});
             return rawOutput;
         }
         // Apply Output Regex Filters
@@ -1101,13 +1120,18 @@ export async function sendLLMRequest(
             appTags: options?.appTags,
             followUpCount: options?.followUpCount,
         });
+        if (pluginPurpose !== "browser" && pluginPurpose !== "checkphone_browser") recordErrorDiagnostic({operation:diagnosticOperation,succeeded:true});
         return applyWithProtectedAvatarDecisionMarkers(
             rawOutput,
             protectedText => applyOutputRegex(protectedText, regexes, { macroEngine, activeTags }),
         );
     } catch (error: unknown) {
         if (error instanceof DOMException && (error as DOMException).name === "AbortError") {
+            recordErrorDiagnostic({operation:diagnosticOperation,error:"AI 回复超时（500秒）"});
             throw new ChatEngineError("AI 回复超时（500秒），请重试。");
+        }
+        if (!diagnosticFailureRecorded) {
+            recordErrorDiagnostic({operation:diagnosticOperation,error});
         }
         if (error instanceof ChatEngineError) throw error;
         const detail = error instanceof Error ? error.message : String(error);

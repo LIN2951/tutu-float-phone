@@ -4,6 +4,7 @@ import {updateChatMessage} from '@/lib/chat-storage';
 
 import { isSingleEmoji, voiceBubbleWidth } from "@/lib/chat-presentation";
 import { CHAT_PAYMENT_LABELS as PAY_UI } from "@/lib/chat-payment-labels";
+import { claimGroupPacket } from "@/lib/group-red-packet";
 import { MusicShareCard } from "./music-share-card";
 import { SharedAppCard } from "./shared-app-card";
 import { WeverseReplayCard } from "./weverse-replay-card";
@@ -789,7 +790,8 @@ function RedPacketBubble({ msg, charName, userName, groupSize, onShowDetail }: {
     const totalRecipients = d?.count || 1;
     const allClaimed = d?.status === "opened" || claimedBy.length >= totalRecipients;
     const isDone = allClaimed || isDeclined;
-    const userShare = userName ? claimedAmounts[userName] : undefined;
+    const packetUserId = `user:${resolveUserIdentity(undefined, "group_chat")?.id || "default"}`;
+    const userShare = d?.packetClaims?.length ? d.packetClaims.find(v => v.recipientId === packetUserId)?.amount : userName ? claimedAmounts[userName] : undefined;
 
     const bgClass = isDeclined
         ? "bg-declined-gradient"
@@ -1890,8 +1892,9 @@ export function MediaDetailModal({ msg, characterId, userName, groupSize, onAcce
     const claimedAmounts = d?.claimedAmounts || {};
     const totalRecipients = d?.count || 1;
     const allClaimed = d?.status === "opened" || claimedBy.length >= totalRecipients;
-    const alreadyClaimed = claimedBy.includes(userName);
-    const userShare = claimedAmounts[userName];
+    const userIdentityId = resolveUserIdentity(groupSize == null ? characterId : undefined, groupSize == null ? "chat" : "group_chat")?.id;
+    const alreadyClaimed = d?.packetClaims?.some(v => v.recipientId === `user:${userIdentityId || "default"}`) || (!d?.packetClaims?.length && claimedBy.includes(userName));
+    const userShare = d?.packetClaims?.length ? d.packetClaims.find(v => v.recipientId === `user:${userIdentityId || "default"}`)?.amount : claimedAmounts[userName];
     const isDeclined = d?.status === "declined";
     const isReceived = d?.status === "received";
     const isPaid = d?.status === "paid";
@@ -1902,31 +1905,23 @@ export function MediaDetailModal({ msg, characterId, userName, groupSize, onAcce
     const paymentDone = isPaid || isDeclined || d?.status === "canceled";
 
     // Can user act?
-    const canClaimRedPacket = isRedPacket && !isFromUser && !allClaimed && !isDeclined && !alreadyClaimed;
+    const canClaimRedPacket = isRedPacket && (groupSize != null || !isFromUser) && !allClaimed && !isDeclined && !alreadyClaimed;
     const canActTransfer = isTransfer && !isFromUser && !transferDone && isRecipient;
     const canActPaymentRequest = isPaymentRequest && !isFromUser && !paymentDone;
 
-    // 拼手气：随机分配（二倍均值法）
-    const calcShare = (): number => {
-        const total = d?.amount || 0;
-        const claimedTotal = Object.values(claimedAmounts).reduce((s, v) => s + v, 0);
-        const remaining = total - claimedTotal;
-        const leftCount = totalRecipients - claimedBy.length;
-        if (leftCount <= 1) return Math.round(remaining * 100) / 100;
-        const max = (remaining / leftCount) * 2;
-        const share = Math.max(0.01, Math.random() * max);
-        return Math.round(Math.min(share, remaining - 0.01 * (leftCount - 1)) * 100) / 100;
-    };
-
     const handleRedPacketAccept = () => {
-        const share = totalRecipients > 1 ? calcShare() : (d?.amount || 0);
-        const newClaimedBy = [...claimedBy, userName];
-        const newClaimedAmounts = { ...claimedAmounts, [userName]: share };
-        const newAllClaimed = newClaimedBy.length >= totalRecipients;
-        const newStatus = newAllClaimed ? "opened" as const : "pending" as const;
-        const updatedData = { ...d, status: newStatus, claimedBy: newClaimedBy, claimedAmounts: newClaimedAmounts };
+        if (groupSize != null) {
+            const result = claimGroupPacket(msg, { id: `user:${userIdentityId || "default"}`, name: userName, userIdentityId });
+            if (!result.message) { setPaymentError(result.error || "领取失败"); return; }
+            onAccept(result.message, `${userName}领取了${senderDisplay}的红包，金额:${formatCurrencyAmount(result.amount!, walletCurrency(d?.currency))}`, "accept_red_packet");
+            return;
+        }
+        const latest = loadChatMessages(msg.sessionId).find(m => m.id === msg.id);
+        if (!latest || latest.mediaData?.status !== "pending") return;
+        const share = latest.mediaData.amount || 0;
+        const updatedData = { ...latest.mediaData, status: "opened" as const, claimedBy: [userName], claimedAmounts: { [userName]: share } };
         updateMessageMediaData(msg.id, updatedData);
-        onAccept({ ...msg, mediaData: updatedData }, `${userName}领取了${senderDisplay}的红包，金额:${formatCurrencyAmount(share, walletCurrency(d?.currency))}`, "accept_red_packet");
+        onAccept({ ...latest, mediaData: updatedData }, `${userName}领取了${senderDisplay}的红包，金额:${formatCurrencyAmount(share, walletCurrency(d?.currency))}`, "accept_red_packet");
     };
 
     const handleRedPacketDecline = () => {
@@ -2057,12 +2052,12 @@ export function MediaDetailModal({ msg, characterId, userName, groupSize, onAcce
                     {/* Claimed list for red packet */}
                     {isRedPacket && claimedBy.length > 0 && (
                         <div className="media-modal-list">
-                            {claimedBy.map((name) => (
-                                <div key={name} className="media-modal-list-row">
-                                    <span>{name}</span>
-                                    <span className="media-modal-list-amt">¥{(claimedAmounts[name] ?? 0).toFixed(2)}</span>
-                                </div>
-                            ))}
+                            {(d?.packetClaims?.length === claimedBy.length ? d.packetClaims.map(v => ({ key: v.recipientId, name: v.name, amount: v.amount })) : claimedBy.map((name, i) => ({ key: `${i}:${name}`, name, amount: claimedAmounts[name] || 0 }))).map(({ key, name, amount }) => (
+                        <div key={key} className="media-modal-list-row">
+                            <span>{name}</span>
+                            <span className="media-modal-list-amt">{formatCurrencyAmount(amount, walletCurrency(d?.currency))}</span>
+                        </div>
+                    ))}
                         </div>
                     )}
 

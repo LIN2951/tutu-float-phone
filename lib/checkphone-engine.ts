@@ -1,3 +1,4 @@
+import { createBuiltinPreset } from "./builtin-preset";
 import {projectReconciliations} from './phone-reconcile';
 import {projectPlayChats} from "./checkphone-play";
 import { sharedCommunicationsPrompt, sharedCommunicationRows, isUserCommunicationName } from "./checkphone-communications";
@@ -14,7 +15,8 @@ import { getChatMessagePreview, loadChatMessages, loadChatSessions, type ChatMes
 import {
   CHECKPHONE_APP_SPECS,
   type CheckPhoneAssetsPayload,
-  type CheckPhoneBilibiliPayload,
+    type CheckPhoneYoutubePayload,
+   type CheckPhoneBilibiliPayload,
   type CheckPhoneDouyinComment,
   type CheckPhoneChatPayload,
   type CheckPhoneDouyinPayload,
@@ -2752,6 +2754,238 @@ function diagnoseXNormalizeFailure(payload: unknown): string {
 
 
 
+type YoutubeBlockParseResult = {
+  parsed: unknown | null;
+  sanitizedCandidate: string;
+  parseMode: "sanitized" | "failed";
+  parseError?: string;
+};
+
+function parseYoutubeNumericField(value: string | undefined): number {
+  return parseCheckPhoneMetricValue(value, /[次播放订阅者观看位]/g);
+}
+
+function parseYoutubeSectionEntries(sectionBody: string) {
+  const matches = [...sectionBody.matchAll(/^##\s*(视频|频道)(\d+)\s*$/gm)];
+  return matches.map((currentMatch, index) => {
+    const next = matches[index + 1];
+    const blockStart = (currentMatch.index ?? 0) + currentMatch[0].length;
+    const blockEnd = next?.index ?? sectionBody.length;
+    return {
+      kind: currentMatch[1] === "频道" ? "channel" : "video",
+      number: Number(currentMatch[2] || index + 1),
+      fields: parseTakeoutTaggedFields(sectionBody.slice(blockStart, blockEnd).trim()),
+    };
+  });
+}
+
+function parseYoutubeBlockPayload(text: string): YoutubeBlockParseResult {
+  const source = stripJsonWrapperNoise(text).replace(/\r/g, "").trim();
+  if (!source) return { parsed: null, sanitizedCandidate: "", parseMode: "failed", parseError: "LLM 返回为空" };
+
+  const sections = [...source.matchAll(/^#\s*(观看记录|稍后观看|赞过的视频|赞过视频|订阅)\s*$/gm)];
+  if (sections.length === 0) {
+    return { parsed: null, sanitizedCandidate: source, parseMode: "failed", parseError: "未找到 YouTube 分区" };
+  }
+
+  const parseSectionBlocks = (...sectionNames: string[]) => {
+    const sectionIndex = sections.findIndex((match) => sectionNames.includes((match[1] || "").trim()));
+    if (sectionIndex < 0) return [];
+    const current = sections[sectionIndex];
+    const start = (current.index ?? 0) + current[0].length;
+    const end = sections[sectionIndex + 1]?.index ?? source.length;
+    return parseYoutubeSectionEntries(source.slice(start, end).trim());
+  };
+
+  const watchHistory = parseSectionBlocks("观看记录")
+    .filter((entry) => entry.kind === "video")
+    .map((entry) => ({
+      id: `youtube_history_${entry.number}`,
+      title: entry.fields["标题"] || "",
+      channelName: entry.fields["频道"] || "",
+      icon: entry.fields["图标"] || "",
+      createdAt: entry.fields["时间"] || "",
+      durationLabel: entry.fields["时长"] || "",
+      playCount: parseYoutubeNumericField(entry.fields["播放量"]),
+      progressLabel: entry.fields["看到哪了"] || "",
+      stateNote: entry.fields["当时状态"] || "",
+      feeling: entry.fields["感受"] || "",
+    }));
+
+  const watchLater = parseSectionBlocks("稍后观看")
+    .filter((entry) => entry.kind === "video")
+    .map((entry) => ({
+      id: `youtube_watch_later_${entry.number}`,
+      title: entry.fields["标题"] || "",
+      channelName: entry.fields["频道"] || "",
+      icon: entry.fields["图标"] || "",
+      createdAt: entry.fields["时间"] || "",
+      durationLabel: entry.fields["时长"] || "",
+      playCount: parseYoutubeNumericField(entry.fields["播放量"]),
+      stateNote: entry.fields["当时状态"] || entry.fields["稍后原因"] || "",
+      feeling: entry.fields["感受"] || "",
+    }));
+
+  const likedVideos = parseSectionBlocks("赞过的视频", "赞过视频")
+    .filter((entry) => entry.kind === "video")
+    .map((entry) => ({
+      id: `youtube_liked_${entry.number}`,
+      title: entry.fields["标题"] || "",
+      channelName: entry.fields["频道"] || "",
+      icon: entry.fields["图标"] || "",
+      createdAt: entry.fields["时间"] || "",
+      durationLabel: entry.fields["时长"] || "",
+      playCount: parseYoutubeNumericField(entry.fields["播放量"]),
+      stateNote: entry.fields["当时状态"] || entry.fields["喜欢原因"] || "",
+      feeling: entry.fields["感受"] || "",
+    }));
+
+  const parsed = {
+    headerTitle: "YouTube",
+    headerSubtitle: "History, Watch later, Liked videos",
+    watchHistory,
+    watchLater,
+    likedVideos,
+  };
+
+  return {
+    parsed,
+    sanitizedCandidate: JSON.stringify(parsed, null, 2),
+    parseMode: "sanitized",
+  };
+}
+
+function normalizeYoutubePayload(payload: unknown): CheckPhoneYoutubePayload | null {
+  if (!payload || typeof payload !== "object") return null;
+  const record = payload as Record<string, unknown>;
+  const isIsoTimestamp = (value: string) => !Number.isNaN(Date.parse(value));
+  const profileRecord = record.profile && typeof record.profile === "object" ? (record.profile as Record<string, unknown>) : null;
+  const profile = profileRecord
+    ? {
+        name: typeof profileRecord.name === "string" ? profileRecord.name.trim() : "",
+        handle: typeof profileRecord.handle === "string" ? profileRecord.handle.trim() : "",
+        bio: typeof profileRecord.bio === "string" ? profileRecord.bio.trim() : "",
+        lastActiveAt: typeof profileRecord.lastActiveAt === "string" ? profileRecord.lastActiveAt.trim() : "",
+      }
+    : undefined;
+
+  const normalizeVideo = (entry: unknown, fallbackId: string, options?: { requireProgress?: boolean }) => {
+    if (!entry || typeof entry !== "object") return null;
+    const item = entry as Record<string, unknown>;
+    const id = typeof item.id === "string" && item.id.trim() ? item.id.trim() : fallbackId;
+    const title = typeof item.title === "string" ? item.title.trim() : "";
+    const channelName = typeof item.channelName === "string" ? item.channelName.trim() : "";
+    const icon = typeof item.icon === "string" && item.icon.trim() ? item.icon.trim() : undefined;
+    const createdAt = typeof item.createdAt === "string" ? item.createdAt.trim() : "";
+    const durationLabel = typeof item.durationLabel === "string" ? item.durationLabel.trim() : "";
+    const playCount = parseCheckPhoneMetricValue(item.playCount);
+    const progressLabel = typeof item.progressLabel === "string" ? item.progressLabel.trim() : "";
+    const stateNote = typeof item.stateNote === "string"
+      ? item.stateNote.trim()
+      : typeof item.saveReason === "string"
+        ? item.saveReason.trim()
+        : "";
+    const feeling = typeof item.feeling === "string" ? item.feeling.trim() : "";
+    if (!id || !title || !channelName || !createdAt || !isIsoTimestamp(createdAt) || !durationLabel || !Number.isFinite(playCount) || !stateNote || !feeling) return null;
+    if (options?.requireProgress && !progressLabel) return null;
+    return {
+      id,
+      title,
+      channelName,
+      icon,
+      createdAt,
+      durationLabel,
+      playCount: Math.max(0, Math.round(playCount)),
+      progressLabel,
+      stateNote,
+      feeling,
+    };
+  };
+
+  const watchHistory = (Array.isArray(record.watchHistory) ? record.watchHistory : [])
+    .map((entry, index) => normalizeVideo(entry, `youtube_history_${index + 1}`, { requireProgress: true }))
+    .filter(Boolean) as CheckPhoneYoutubePayload["watchHistory"];
+
+  const watchLater = (Array.isArray(record.watchLater) ? record.watchLater : [])
+    .map((entry, index) => normalizeVideo(entry, `youtube_watch_later_${index + 1}`))
+    .filter(Boolean) as CheckPhoneYoutubePayload["watchLater"];
+
+  const likedVideos = (Array.isArray(record.likedVideos) ? record.likedVideos : Array.isArray(record.likes) ? record.likes : [])
+    .map((entry, index) => normalizeVideo(entry, `youtube_liked_${index + 1}`))
+    .filter(Boolean) as CheckPhoneYoutubePayload["likedVideos"];
+
+  if (watchHistory.length === 0 || watchLater.length === 0 || likedVideos.length === 0) return null;
+
+  const seen = new Set<string>();
+  for (const item of [...watchHistory, ...watchLater, ...likedVideos]) {
+    if (seen.has(item.id)) return null;
+    seen.add(item.id);
+  }
+
+  return {
+    headerTitle: typeof record.headerTitle === "string" && record.headerTitle.trim() ? record.headerTitle.trim() : "YouTube",
+    headerSubtitle:
+      typeof record.headerSubtitle === "string" && record.headerSubtitle.trim() ? record.headerSubtitle.trim() : "History, Watch later, Liked videos",
+    profile,
+    watchHistory: watchHistory.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
+    watchLater: watchLater.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
+    likedVideos: likedVideos.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
+  };
+}
+
+function diagnoseYoutubeNormalizeFailure(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "顶层不是对象";
+  const record = payload as Record<string, unknown>;
+  const isIsoTimestamp = (value: string) => !Number.isNaN(Date.parse(value));
+  if (!Array.isArray(record.watchHistory)) return "watchHistory 不是数组";
+  if (!Array.isArray(record.watchLater)) return "watchLater 不是数组";
+  if (!Array.isArray(record.likedVideos)) return "likedVideos 不是数组";
+
+  const diagnoseVideo = (item: Record<string, unknown>, label: string) => {
+    const id = typeof item.id === "string" ? item.id.trim() : "";
+    if (!id) return `${label}.id 缺失`;
+    if (typeof item.title !== "string" || !item.title.trim()) return `${label}.title 缺失`;
+    if (typeof item.channelName !== "string" || !item.channelName.trim()) return `${label}.channelName 缺失`;
+    if (typeof item.createdAt !== "string" || !isIsoTimestamp(item.createdAt.trim())) return `${label}.createdAt 非法`;
+    if (typeof item.durationLabel !== "string" || !item.durationLabel.trim()) return `${label}.durationLabel 缺失`;
+    if (!Number.isFinite(parseCheckPhoneMetricValue(item.playCount))) return `${label}.playCount 非法`;
+    if (typeof item.stateNote !== "string" || !item.stateNote.trim()) return `${label}.stateNote 缺失`;
+    if (typeof item.feeling !== "string" || !item.feeling.trim()) return `${label}.feeling 缺失`;
+    return null;
+  };
+
+  const seen = new Set<string>();
+  for (let index = 0; index < record.watchHistory.length; index += 1) {
+    const item = record.watchHistory[index] as Record<string, unknown>;
+    if (!item || typeof item !== "object") return `watchHistory[${index}] 不是对象`;
+    const issue = diagnoseVideo(item, `watchHistory[${index}]`);
+    if (issue) return issue;
+    const id = (item.id as string).trim();
+    if (seen.has(id)) return `存在重复 id: ${id}`;
+    seen.add(id);
+    if (typeof item.progressLabel !== "string" || !item.progressLabel.trim()) return `watchHistory[${index}].progressLabel 缺失`;
+  }
+  for (let index = 0; index < record.watchLater.length; index += 1) {
+    const item = record.watchLater[index] as Record<string, unknown>;
+    if (!item || typeof item !== "object") return `watchLater[${index}] 不是对象`;
+    const issue = diagnoseVideo(item, `watchLater[${index}]`);
+    if (issue) return issue;
+    const id = (item.id as string).trim();
+    if (seen.has(id)) return `存在重复 id: ${id}`;
+    seen.add(id);
+  }
+  for (let index = 0; index < record.likedVideos.length; index += 1) {
+    const item = record.likedVideos[index] as Record<string, unknown>;
+    if (!item || typeof item !== "object") return `likedVideos[${index}] 不是对象`;
+    const issue = diagnoseVideo(item, `likedVideos[${index}]`);
+    if (issue) return issue;
+    const id = (item.id as string).trim();
+    if (seen.has(id)) return `存在重复 id: ${id}`;
+    seen.add(id);
+  }
+  return "结构存在字段缺失、时间非法或重复id";
+}
+
 type InstagramBlockParseResult = {
   parsed: unknown | null;
   sanitizedCandidate: string;
@@ -4092,6 +4326,80 @@ export async function generateCheckPhoneX(
   }
 }
 
+
+export async function generateCheckPhoneYoutube(
+  characterId: string,
+  previousPayload?: CheckPhoneYoutubePayload | null,
+  previousUpdatedAt?: string,
+): Promise<{
+  payload: CheckPhoneYoutubePayload | null;
+  summary: string;
+  error?: string;
+  debugRawOutput?: string;
+  debugSanitizedOutput?: string;
+  debugParseMode?: "raw" | "sanitized" | "failed";
+  debugParseError?: string;
+  debugNormalizeError?: string;
+}> {
+  const { apiConfig, preset, worldBooks, regexes } = resolveCheckPhoneConfigs(characterId);
+  if (!apiConfig) return { payload: null, summary: "", error: "未找到可用的 API 配置", debugRawOutput: "", debugParseMode: "failed" };
+
+  try {
+    // Older saved built-in presets do not automatically receive new entries; add only
+    // the YouTube output contract in-memory, without rewriting the user's preset.
+    const youtubeEntryPresent = preset?.prompts?.some(item => item.identifier === "checkphone_youtube") === true;
+    let youtubePreset = preset;
+    if (preset && !youtubeEntryPresent && preset.builtIn) {
+      const youtubeEntry = createBuiltinPreset().prompts.find(item => item.identifier === "checkphone_youtube");
+      if (youtubeEntry) youtubePreset = {
+        ...preset,
+        prompts: [...preset.prompts, youtubeEntry],
+        prompt_order: [...(preset.prompt_order || []), {identifier:"checkphone_youtube",enabled:true}],
+      };
+    }
+    if (preset && !youtubeEntryPresent && !preset.builtIn) {
+      return {payload:null,summary:"",error:"当前自定义预设缺少「查手机·YouTube」输出格式条目，请补齐后重试。",debugParseMode:"failed"};
+    }
+    const messages = await buildCheckPhoneAppMessages(characterId, "youtube", youtubePreset, worldBooks, regexes, {
+      snapshotSummary: previousPayload ? formatSnapshotSummary(previousPayload) : "",
+      lastRefreshAt: previousUpdatedAt ?? "",
+    });
+    const rawOutput = await sendLLMRequest(
+      apiConfig,
+      youtubePreset,
+      messages,
+      regexes,
+      { characterName: loadCharacters().find((item) => item.id === characterId)?.name },
+      { skipOutputRegex: true, appId: "checkphone_youtube" },
+    );
+
+    if (!rawOutput?.trim()) return { payload: null, summary: "", error: "LLM 返回为空", debugRawOutput: rawOutput ?? "", debugParseMode: "failed" };
+    const { parsed, sanitizedCandidate, parseMode, parseError } = parseYoutubeBlockPayload(rawOutput);
+    const payload = normalizeYoutubePayload(parsed);
+    if (!payload) {
+      return {
+        payload: null,
+        summary: "",
+        error: "无法解析 YouTube 内容",
+        debugRawOutput: rawOutput,
+        debugSanitizedOutput: sanitizedCandidate,
+        debugParseMode: parseMode,
+        debugParseError: parseError || undefined,
+        debugNormalizeError: parsed ? diagnoseYoutubeNormalizeFailure(parsed) : undefined,
+      };
+    }
+
+    return {
+      payload,
+      summary: formatSnapshotSummary(payload),
+      debugSanitizedOutput: parseMode === "sanitized" ? sanitizedCandidate : undefined,
+      debugParseMode: parseMode,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "生成失败";
+    return { payload: null, summary: "", error: message, debugRawOutput: "", debugParseMode: "failed", debugParseError: message };
+  }
+}
 
 export async function generateCheckPhoneBilibili(
   characterId: string,

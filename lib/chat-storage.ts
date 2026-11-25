@@ -436,7 +436,8 @@ export type ChatAppSettings = {
     globalVisionImagePromptLimit?: number;
     timeAware?: boolean; // When true, inject timestamps into prompt so AI knows message timing (default: true)
     promptViewerEnabled?: boolean; // When true, show the floating prompt viewer entry
-    quickActionEnabled?: boolean; // When true, show the floating quick action entry
+    quickActionEnabled?: boolean;
+    errorDiagnosticsEnabled?: boolean; // Opt-in error diagnostics // When true, show the floating quick action entry
     browserNotificationsEnabled?: boolean; // When true, send browser Notification API alerts when page is hidden
     enterToSendEnabled?: boolean; // When true, Enter sends chat input and Shift+Enter inserts a newline
     callVibrationEnabled?: boolean; // 语音/视频来电等待接听时循环振动（默认开；iOS 网页不支持振动则无效果）

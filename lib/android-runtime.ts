@@ -49,7 +49,14 @@ export function installAndroidRuntime(){
    }
    if(blob.size===0)await Filesystem.writeFile({path:name,directory:Directory.Cache,data:'',recursive:true});
    const file=await Filesystem.getUri({path:name,directory:Directory.Cache});await Share.share({title:safe,files:[file.uri]});
-  })().catch(error=>window.alert(`导出失败：${error instanceof Error?error.message:String(error)}`));
+  })().catch(error=>{
+    // The Android share sheet may reject after the user dismisses it. This is
+    // a cancellation, not a failed ZIP export or a failed file write.
+    const name=error instanceof Error?error.name:'';
+    const message=error instanceof Error?error.message:String(error);
+    if(name==='AbortError'||/\b(cancelled|canceled|cancel)\b/i.test(message))return;
+    window.alert(`文件保存或打开系统分享失败：${message}`);
+  });
  },true);
  void App.addListener('backButton', ({ canGoBack }) => {
   if (dispatchAppBack()) return;

@@ -23,6 +23,7 @@ export type CheckPhoneBilingualTone =
   | "telegram"
   | "x"
   | "reddit"
+  | "youtube"
   | "bilibili"
   | "instagram"
   | "douyin"

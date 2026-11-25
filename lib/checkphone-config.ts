@@ -17,6 +17,7 @@ export type CheckPhoneAppId =
   | "music"
   | "x"
   | "reddit"
+  | "youtube"
   | "bilibili"
   | "instagram"
   | "telegram"
@@ -481,6 +482,59 @@ export type CheckPhoneBilibiliPayload = {
   headerSubtitle: string;
   watchHistory: CheckPhoneBilibiliHistoryVideo[];
   favorites: CheckPhoneBilibiliFavoriteVideo[];
+};
+
+export type CheckPhoneYoutubeProfile = {
+  name: string;
+  handle: string;
+  bio: string;
+  lastActiveAt: string;
+};
+
+export type CheckPhoneYoutubeHistoryVideo = {
+  id: string;
+  title: string;
+  channelName: string;
+  icon?: string;
+  createdAt: string;
+  durationLabel: string;
+  playCount: number;
+  progressLabel: string;
+  stateNote: string;
+  feeling: string;
+};
+
+export type CheckPhoneYoutubeWatchLaterVideo = {
+  id: string;
+  title: string;
+  channelName: string;
+  icon?: string;
+  createdAt: string;
+  durationLabel: string;
+  playCount: number;
+  stateNote: string;
+  feeling: string;
+};
+
+export type CheckPhoneYoutubeLikedVideo = {
+  id: string;
+  title: string;
+  channelName: string;
+  icon?: string;
+  createdAt: string;
+  durationLabel: string;
+  playCount: number;
+  stateNote: string;
+  feeling: string;
+};
+
+export type CheckPhoneYoutubePayload = {
+  headerTitle: string;
+  headerSubtitle: string;
+  profile?: CheckPhoneYoutubeProfile;
+  watchHistory: CheckPhoneYoutubeHistoryVideo[];
+  watchLater: CheckPhoneYoutubeWatchLaterVideo[];
+  likedVideos: CheckPhoneYoutubeLikedVideo[];
 };
 
 export type CheckPhoneRedditProfile = {
@@ -1096,6 +1150,7 @@ export type CheckPhonePromptSecondaryTag =
   | "music"
   | "x"
   | "reddit"
+  | "youtube"
   | "bilibili"
   | "instagram"
   | "telegram"
@@ -1132,6 +1187,7 @@ export const CHECKPHONE_OPTIONAL_POOL_APP_IDS: CheckPhoneAppId[] = [
   "music",
   "x",
   "reddit",
+  "youtube",
   "bilibili",
   "instagram",
   "telegram",
@@ -1160,6 +1216,7 @@ export const CHECKPHONE_APP_SPECS: Record<CheckPhoneAppId, CheckPhoneAppSpec> = 
   music: { id: "music", label: "音乐", englishLabel: "Music" },
   x: { id: "x", label: "X", englishLabel: "X" },
   reddit: { id: "reddit", label: "Reddit", englishLabel: "Reddit" },
+  youtube: { id: "youtube", label: "YouTube", englishLabel: "YouTube" },
   bilibili: { id: "bilibili", label: "B站", englishLabel: "Bilibili" },
   instagram: { id: "instagram", label: "Instagram", englishLabel: "Instagram" },
   telegram: { id: "telegram", label: "Telegram", englishLabel: "Telegram" },
@@ -1191,6 +1248,7 @@ const CHECKPHONE_APP_PROMPT_TAGS: Record<CheckPhoneAppId, Exclude<CheckPhoneProm
   music: "music",
   x: "x",
   reddit: "reddit",
+  youtube: "youtube",
   bilibili: "bilibili",
   instagram: "instagram",
   telegram: "telegram",
@@ -1217,6 +1275,7 @@ export const CHECKPHONE_PROMPT_SECONDARY_TAG_LABELS: Record<CheckPhonePromptSeco
   music: CHECKPHONE_APP_SPECS.music.label,
   x: CHECKPHONE_APP_SPECS.x.label,
   reddit: CHECKPHONE_APP_SPECS.reddit.label,
+  youtube: CHECKPHONE_APP_SPECS.youtube.label,
   bilibili: CHECKPHONE_APP_SPECS.bilibili.label,
   instagram: CHECKPHONE_APP_SPECS.instagram.label,
   telegram: CHECKPHONE_APP_SPECS.telegram.label,

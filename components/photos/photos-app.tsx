@@ -36,7 +36,6 @@ import {
   removePhotoRecord,
   removePhotoRecords,
   setCharacterCurrentTraits,
-  setGeneratedPhotoReference,
   setPhotoLibraryPreferences,
   updatePhotoRecord,
   updatePhotoRecords,
@@ -717,7 +716,6 @@ export function PhotosApp({ onClose, onNotice }: Props) {
     const generated = detailPhoto.origin === "generated";
     const generatedOwner = generatedPhotoOwner(detailPhoto);
     const generator = generatedOwner ? characterById.get(generatedOwner) : undefined;
-    const isGeneratedReference = generator && currentTraitsByCharacter[generator.id]?.generatedReferencePhotoId === detailPhoto.id;
     const activeUsage = detailPhoto.usageHistory.filter((usage) => usage.usedAt > (detailPhoto.releasedAt || 0));
     const storyCover = photoStackCover(detailPhoto, photos);
     const stackMemberCount = photos.filter((photo) => photo.stackId === detailPhoto.id).length;
@@ -896,15 +894,6 @@ export function PhotosApp({ onClose, onNotice }: Props) {
             </section>
           ) : null}
 
-          {generated && generator ? (
-            <button type="button" className="photos-reference-btn" onClick={() => {
-              setGeneratedPhotoReference(generator.id, isGeneratedReference ? undefined : detailPhoto.id);
-              onNotice?.(isGeneratedReference ? "已取消生图外貌参考。" : `已设为 ${generator.name} 的生图外貌参考。`);
-            }}>
-              <Sparkles size={15} />
-              {isGeneratedReference ? "已设为外貌参考 · 点击取消" : `设为 ${generator.name} 的生图外貌参考`}
-            </button>
-          ) : null}
           {!generated && detailPhoto.linkedCharacterIds.map((characterId) => (
             <button type="button" className="photos-reference-btn" key={characterId} onClick={() => setTraitsFromPhoto(characterId)}>
               <Sparkles size={15} />

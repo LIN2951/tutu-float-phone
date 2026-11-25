@@ -84,6 +84,7 @@ export function TheqooApp({ onClose, onNotice: externalNotice, visible = true, o
   const [imageBusy, setImageBusy] = useState(false);
   const { onNotice, feedback: generationFeedback } = useGenerationFeedback(busy ? (generationKind === "search" ? "正在生成搜索结果…" : "正在刷新 theqoo 帖子…") : moreCommentsPostId ? "正在生成更多评论…" : imageBusy ? "正在生成图片…" : publishing ? "正在发布帖子…" : commentBusy ? "正在发布评论…" : null, externalNotice, visible);
   const [imagePrompt, setImagePrompt] = useState("");
+  const [includeImageUserReference,setIncludeImageUserReference] = useState(false);
   const [imagePreview,setImagePreview]=useState<{ref:string;prompt:string;targetId:string|null}|null>(null);
   const [textImageDraft, setTextImageDraft] = useState("");
   const [textImageTargetId, setTextImageTargetId] = useState<string | null>(null);
@@ -352,7 +353,7 @@ export function TheqooApp({ onClose, onNotice: externalNotice, visible = true, o
     setImageBusy(true);
     try {
       const description = `韩国匿名论坛 theqoo 帖子配图。图片生成提示词与画面中出现的所有可见文字都必须使用简体中文，禁止出现韩文/韩语文字。排版清楚，不使用真人肖像。${imagePrompt.trim() ? `中文画面描述：${imagePrompt.trim()}` : "以简约论坛信息卡片或氛围配图呈现，不包含具体人物姓名或帖子标题。"}`;
-      const result = await generateImageFromConfiguredApi({userInitiated:true, description, appId: "theqoo" });
+      const result = await generateImageFromConfiguredApi({userInitiated:true, description, appId: "theqoo", includeUserReference: includeImageUserReference });
       if (!result) throw new Error("生图没有返回图片，请检查生图设置。");
       setImagePreview({ref:result.mediaRef,prompt:imagePrompt.trim(),targetId:imageTargetId});
       onNotice('图片已生成，请确认是否使用');
@@ -503,7 +504,7 @@ export function TheqooApp({ onClose, onNotice: externalNotice, visible = true, o
           <div className={styles.postMeta}>
             <span>{t("무명의 더쿠", "匿名用户")}</span><span>·</span><span>{new Date(selected.createdAt).toLocaleString(zh ? "zh-CN" : ja ? "ja-JP" : "ko-KR")}</span><span>·</span><span>{t("조회", "浏览量")} {selected.views.toLocaleString()}</span>
             <span className={styles.metaActions}>
-              <button onClick={() => { setImagePrompt(""); setImageTargetId(null); setTextImageDraft(""); setTextImageTargetId(null); setImageEditor(true); }} aria-label="图片管理"><ImagePlus size={16} /></button>
+              <button onClick={() => { setImagePrompt(""); setImageTargetId(null); setTextImageDraft(""); setTextImageTargetId(null); setIncludeImageUserReference(false); setImageEditor(true); }} aria-label="图片管理"><ImagePlus size={16} /></button>
               <button onClick={() => openEditor(selected)} aria-label="编辑"><Pencil size={15} /></button>
               <button onClick={deletePost} aria-label="删除"><Trash2 size={15} /></button>
             </span>
@@ -611,6 +612,7 @@ export function TheqooApp({ onClose, onNotice: externalNotice, visible = true, o
       <button className={styles.secondary} disabled={imageBusy || !textImageDraft.trim()} onClick={() => void addTextImage()}>{textImageTargetId ? t("문자 이미지 저장", "保存文字图") : t("문자 이미지 추가", "添加文字图")}</button>
       <label className={styles.imageLabel}>{imageTargetId ? t("이미지 재생성 · 중국어 설명", "重新生成 · 中文描述") : t("AI 이미지 · 중국어 설명", "AI 生图 · 中文描述")}<textarea value={imagePrompt} onChange={e => setImagePrompt(e.target.value)} placeholder="图片描述请直接写中文；生成图内文字也只使用中文" /></label>
       {imagePreview&&<><ForumImage assetId={imagePreview.ref}/><button className={styles.primary} disabled={imageBusy} onClick={()=>{const image={id:imagePreview.targetId||newId(),kind:'generated' as const,mediaRef:imagePreview.ref,prompt:imagePreview.prompt};const images=imagesOf(selected);const index=images.findIndex(i=>i.id===image.id);if(index>=0)images[index]=image;else images.push(image);replaceImages(selected,images);setImagePreview(null);setImageEditor(false);}}>使用这张图</button></>}
+      <label className="ti-user-reference"><input type="checkbox" checked={includeImageUserReference} disabled={imageBusy} onChange={e=>setIncludeImageUserReference(e.target.checked)}/><span>参考当前用户的提示词和参考图</span></label>
       <button className={styles.primary} disabled={imageBusy} onClick={() => void generateImage()}>{imageBusy ? t("생성 중…", "生成中…") : imageTargetId ? t("다시 생성", "重新生图") : t("이미지 생성", "生成图片预览")}</button>
     </div></div>}
   </div>;

@@ -6,7 +6,7 @@ android {
     namespace "app.ii.phone"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "app.ii.phone"
+        applicationId "tutumaver.float.phone"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode mobileVersion.versionCode as int

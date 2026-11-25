@@ -22,6 +22,7 @@ import {
     filterLikelyImageModels,
     generateImageFromConfiguredApi,
 } from "@/lib/image-generation-service";
+import { isAndroidApp } from "@/lib/android-runtime";
 import { Alert } from "@/components/ui/feedback";
 import { Input, Select, Textarea, Toggle } from "@/components/ui/form";
 import { ConfirmDialog, ContentDialog } from "@/components/ui/modal";
@@ -558,7 +559,8 @@ export function ImageGenerationSettings() {
                     </Select>
                 </div>
 
-                {settings.provider === "novelai" && (
+                {isAndroidApp() && <p className="menu-desc">安卓版直接连接当前生图 API，无需填写网站服务地址；请求方式选项只在网页端使用。</p>}
+                {settings.provider === "novelai" && !isAndroidApp() && (
                     <div className="flex flex-col gap-1">
                         <label className="menu-desc ml-1">请求方式</label>
                         <Select

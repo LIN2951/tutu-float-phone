@@ -160,6 +160,8 @@ async function generateMedia(request: MediaResolverRequest, intentKind: MediaInt
     characterId,
     appId: request.appId,
     useReferenceImage: request.useReferenceImage ?? (request.actor.type === "character" && ["selfie", "portrait", "group"].includes(intentKind)),
+    // An image without an identified character must not inherit that character's text face traits either.
+    omitCharacterReference: request.actor.type !== "character" || (request.useReferenceImage !== true && !["selfie", "portrait", "group"].includes(intentKind)),
     signal: request.signal,
   }).catch(() => null);
   if (!generated) {

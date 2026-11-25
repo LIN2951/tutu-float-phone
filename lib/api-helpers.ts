@@ -1,3 +1,4 @@
+import { recordErrorDiagnostic } from "./error-diagnostics";
 // lib/api-helpers.ts
 // Unified API helpers — single source of truth for provider URL resolution,
 // request headers, and response parsing. All LLM-calling modules should use these.
@@ -103,6 +104,7 @@ export async function simpleLLMCall(
 ): Promise<{ content: string | null; error?: string; finishReason?: string; wasTruncated?: boolean }> {
     const baseUrl = determineBaseUrl(config);
     if (!baseUrl || !config.apiKey) {
+        recordErrorDiagnostic({ operation: options?.label || "API 请求", error: "API 地址或密钥无效" });
         return { content: null, error: "API 地址或密钥无效" };
     }
 
@@ -174,10 +176,20 @@ export async function simpleLLMCall(
                 messages: messages.map(m => ({ role: m.role, content: m.content })),
                 rawResponse: `[API 错误 ${res.status}] ${errText.slice(0, 2000)}`,
             });
+            recordErrorDiagnostic({operation:options?.label || "API 请求",error:`API 错误 ${res.status}`,status:res.status,actualReturn:errText});
             return { content: null, error: `API 错误 ${res.status}: ${errText.slice(0, 200)}` };
         }
 
-        const data = await res.json();
+        const responseText = await res.text();
+        let data: Record<string, unknown>;
+        try { data = JSON.parse(responseText) as Record<string, unknown>; }
+        catch(error) {
+            recordErrorDiagnostic({operation:options?.label || "API 请求",category:"parse",
+                error:"服务端返回的内容不是有效 JSON",status:res.status,
+                expectedFormat:"API 服务标准 JSON 响应",actualReturn:responseText,
+                parseFailure:error instanceof Error ? error.message : String(error)});
+            return {content:null,error:"服务端返回内容不是有效 JSON，请查看错误诊断中的实际返回内容"};
+        }
 
         // Extract content — try multiple response formats for maximum compatibility
         const content = extractLLMContent(data, config.provider);
@@ -194,9 +206,13 @@ export async function simpleLLMCall(
         if (!content) {
             console.warn("[simpleLLMCall] Empty response. Keys:", JSON.stringify(Object.keys(data || {})),
                 "Full:", JSON.stringify(data).slice(0, 500));
-            return { content: null, error: describeEmptyLLMResponse(data, finishReason, wasTruncated, config), finishReason, wasTruncated };
+            const details=describeEmptyLLMResponse(data, finishReason, wasTruncated, config);
+            recordErrorDiagnostic({operation:options?.label || "API 请求",category:"parse",error:details,
+                expectedFormat:"非空模型文本响应",actualReturn:responseText,parseFailure:"未能提取非空模型文字内容"});
+            return { content: null, error: details, finishReason, wasTruncated };
         }
 
+        recordErrorDiagnostic({operation:options?.label || "API 请求",succeeded:true});
         return { content, finishReason, wasTruncated };
     } catch (err) {
         console.warn("[simpleLLMCall] fetch error:", err);
@@ -208,6 +224,7 @@ export async function simpleLLMCall(
             rawResponse: `[请求失败] ${err instanceof Error ? err.message : String(err)}`,
         });
         const message = err instanceof Error ? err.message : String(err);
+        recordErrorDiagnostic({operation:options?.label || "API 请求",error:message});
         if (options?.signal?.aborted) return { content: null, error: "请求已取消" };
         if (/failed to fetch|network request failed|load failed|networkerror/i.test(message)) {
             return { content: null, error: "网络连接失败（Failed to fetch）：请检查记忆总结 API 的地址、网络连接及网页版跨域限制；这不是模型能力不足的直接证据。" };

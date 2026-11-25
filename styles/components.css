@@ -6070,3 +6070,68 @@
 .text-image-mask-preview span{font:inherit;color:var(--c-text-secondary,#86868b);font-size:.92em}
 .text-image-mask-buttons{display:flex;gap:8px;padding:0 10px 8px;flex-wrap:wrap}
 .text-image-mask-buttons .ui-btn{font-family:inherit;font-size:calc(12px * var(--app-text-scale,1));min-height:36px;padding:7px 14px}
+
+/* Error diagnostic float: reuse native quick-action panel, button scale and typography. */
+.error-diagnostics-layer { z-index:100002; }
+.prompt-viewer-float-button.error-diagnostics-ball { left:18px;right:auto;bottom:136px;
+  background:radial-gradient(circle at 44% 38%,rgba(246,200,118,.75),rgba(170,185,233,.38) 46%,transparent 76%);
+  box-shadow:0 0 20px 4px rgba(188,164,125,.13),0 5px 14px rgba(70,80,120,.10); }
+.error-diagnostics-overlay { position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  padding:max(75px,calc(var(--safe-area-top,48px) + 18px)) 14px 18px;
+  background:rgba(0,0,0,.20);box-sizing:border-box;pointer-events:auto; }
+.error-diagnostics-popover {position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;
+  width:min(344px,100%)!important;max-height:100%!important; }
+.error-diagnostics-body p,.error-diagnostics-body li {font-size:calc(12px * var(--app-text-scale,1));line-height:1.55;}
+.error-diagnostics-body ol {margin:0;padding-left:19px;display:grid;gap:5px;}
+.error-diagnostics-body details {font-size:calc(12px * var(--app-text-scale,1));overflow-wrap:anywhere;}
+.error-diagnostics-body details summary {cursor:pointer;padding:7px 0;}
+.error-diagnostics-body .error-diagnostics-technical {white-space:pre-wrap;word-break:break-word;}
+.error-diagnostics-copy {display:flex;justify-content:center;gap:10px;}
+.error-diagnostics-privacy {font-size:calc(10px * var(--app-text-scale,1))!important;opacity:.7;}
+
+.error-diagnostics-body .error-diagnostics-technical {max-height:180px;overflow:auto;font:inherit;font-size:calc(11px * var(--app-text-scale,1));}
+.error-diagnostics-body pre.error-diagnostics-technical {white-space:pre-wrap;overflow-wrap:anywhere;padding:10px;border-radius:10px;background:var(--c-card);border:1px solid var(--c-input-border,#9993);}
+
+/* Shared checkbox visuals inside dialogs only. Keep switches/toggles and checkbox behavior unchanged.
+   16px circle + centered check, with label text aligned on the same middle axis. */
+:is(.ti-dialog,.modal-sheet,[role="dialog"],.offline-image-generation) input[type="checkbox"]:not([role="switch"]):not(.switch-input) {
+  appearance:none;-webkit-appearance:none;
+  display:inline-grid;place-content:center;
+  flex:0 0 16px;width:16px;height:16px;min-width:16px;min-height:16px;
+  padding:0;margin:0;vertical-align:middle;
+  border:1.5px solid var(--c-text, #353535);
+  border-radius:50%;background:transparent;
+  box-sizing:border-box;cursor:pointer;
+}
+:is(.ti-dialog,.modal-sheet,[role="dialog"],.offline-image-generation) input[type="checkbox"]:not([role="switch"]):not(.switch-input)::before {
+  content:"";width:7px;height:4px;border:solid #fff;border-width:0 0 2px 2px;
+  transform:translateY(-1px) rotate(-45deg) scale(0);transform-origin:center;
+}
+:is(.ti-dialog,.modal-sheet,[role="dialog"],.offline-image-generation) input[type="checkbox"]:not([role="switch"]):not(.switch-input):checked {
+  background:#1e1e1e;border-color:#1e1e1e;
+}
+:is(.ti-dialog,.modal-sheet,[role="dialog"],.offline-image-generation) input[type="checkbox"]:not([role="switch"]):not(.switch-input):checked::before {
+  transform:translateY(-1px) rotate(-45deg) scale(1);
+}
+:is(.ti-dialog,.modal-sheet,[role="dialog"],.offline-image-generation) input[type="checkbox"]:not([role="switch"]):not(.switch-input):focus-visible {
+  outline:2px solid var(--c-icon-active, #6d8cef);outline-offset:3px;
+}
+:is(.ti-dialog,.modal-sheet,[role="dialog"],.offline-image-generation) input[type="checkbox"]:not([role="switch"]):not(.switch-input):disabled {
+  cursor:not-allowed;opacity:.45;
+}
+.ti-dialog .ti-user-reference,.offline-image-generation .ti-user-reference {
+  display:flex;align-items:center;justify-content:flex-start;gap:10px;
+  min-height:24px;line-height:1.45;white-space:normal;
+}
+.ti-dialog .ti-user-reference input[type="checkbox"],.offline-image-generation .ti-user-reference input[type="checkbox"] {
+  margin:0;align-self:center;
+}
+.ti-dialog .ti-user-reference span,.offline-image-generation .ti-user-reference span {
+  flex:1;min-width:0;overflow-wrap:anywhere;
+}
+
+.error-diagnostics-status{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px 10px;
+  padding:10px 12px;border-radius:12px;background:var(--c-page-body-bg,var(--c-card));
+  font-size:calc(12px * var(--app-text-scale,1));}
+.error-diagnostics-status>span{color:var(--c-text);opacity:.75;}
+.error-diagnostics-status>strong{text-align:right;overflow-wrap:anywhere;font-weight:700;color:var(--c-text-title);}

@@ -5,7 +5,6 @@ import JSZip from "jszip";
 import { getChatImageFromIndexedDB } from "./chat-asset-storage";
 import { loadCharacters } from "./character-storage";
 import { storeMediaBlob } from "./media-cache-storage";
-import { generatedPhotoOwner, loadPhotoLibrary } from "./photo-library-storage";
 import { throwIfAborted } from "./abort-utils";
 import { fetchExternalApi, isAndroidNativeApi } from "./android-native-api";
 import {
@@ -749,12 +748,6 @@ export async function fetchNovelAiModels(apiKey: string): Promise<string[]> {
   }
 }
 
-function selectedGeneratedReference(characterId: string) {
-  const library = loadPhotoLibrary();
-  const id = library.currentTraitsByCharacter[characterId]?.generatedReferencePhotoId;
-  return id ? library.photos.find(photo => photo.id === id && generatedPhotoOwner(photo) === characterId) : undefined;
-}
-
 export async function generateImageFromConfiguredApi(params: {
   userInitiated?: boolean;
   description: string;
@@ -763,6 +756,8 @@ export async function generateImageFromConfiguredApi(params: {
   appId?: string;
   useReferenceImage?: boolean;
   includeUserReference?: boolean;
+  /** Explicitly suppress all role-specific image and text identity references (strangers/scenery). */
+  omitCharacterReference?: boolean;
   settings?: ImageGenerationSettings;
   signal?: AbortSignal;
 }): Promise<ImageGenerationResult | null> {
@@ -779,9 +774,7 @@ export async function generateImageFromConfiguredApi(params: {
   if (!settings.enabled) return null;
   // Freeze this identity at generation start, even if bindings change while reading assets.
   const generationUserIdentity = params.includeUserReference ? resolveUserIdentity(params.characterId, params.appId) : null;
-  if (params.includeUserReference && !generationUserIdentity) {
-    throw new Error("尚未设置用户身份，请先在配置绑定中选择当前用户。");
-  }
+
 
   const description = params.description.trim();
   if (!description) return null;
@@ -798,7 +791,7 @@ export async function generateImageFromConfiguredApi(params: {
 
     const positiveParts: string[] = [];
     if (activePreset.positivePrompt?.trim()) positiveParts.push(activePreset.positivePrompt.trim());
-    const characterFeaturePrompt = params.characterId
+    const characterFeaturePrompt = params.characterId && !params.omitCharacterReference
       ? settings.characterReferences?.[params.characterId]?.featurePrompt?.trim()
       : "";
     const activeUser = generationUserIdentity;
@@ -836,39 +829,36 @@ export async function generateImageFromConfiguredApi(params: {
   const openaiSettings = openaiPreset ? { ...settings, ...openaiPreset } : settings;
   if (!openaiSettings.apiKey.trim() || !openaiSettings.baseUrl.trim() || !openaiSettings.model.trim()) return null;
 
-  const reference = params.characterId ? settings.characterReferences?.[params.characterId] : undefined;
-  const selectedPhoto = !params.settings && params.useReferenceImage && params.characterId
-    ? selectedGeneratedReference(params.characterId) : undefined;
-  // 「非自拍不使用参考图」开关已从生图设置页删除：参考图启用后始终参与生成
-  const shouldUseReference = Boolean(
-    params.useReferenceImage
-    && reference?.assetId
-    && reference.enabled !== false,
-  );
-  const selectedImageDataUrl = selectedPhoto ? await getChatImageFromIndexedDB(selectedPhoto.assetId).catch(() => null) : null;
-  const rawReferenceImageDataUrl = selectedImageDataUrl || (shouldUseReference && reference?.assetId
-    ? await getChatImageFromIndexedDB(reference.assetId)
-    : null);
+  const reference = params.characterId && !params.omitCharacterReference
+    ? settings.characterReferences?.[params.characterId] : undefined;
+  const shouldUseReference = Boolean(params.useReferenceImage && reference?.assetId && reference.enabled !== false);
+  // The image settings are the sole source of fixed-face references. Photos' current traits remain separate.
+  const rawReferenceImageDataUrl = shouldUseReference && reference?.assetId
+    ? await getChatImageFromIndexedDB(reference.assetId).catch(() => null)
+    : null;
   throwIfAborted(params.signal);
   // Keep each reference's identity attached to its exact multipart position.
   // Character portrait must precede the currently bound user's portrait.
   const referenceImageDataUrls: string[] = [];
   const referenceRoles: Array<"character" | "user"> = [];
   if (rawReferenceImageDataUrl) {
-    referenceImageDataUrls.push(await normalizeReferenceImageForEdit(rawReferenceImageDataUrl,
-      selectedImageDataUrl ? undefined : reference?.faceCrop));
-    referenceRoles.push("character");
+    // Invalid reference media must not suppress a usable text appearance reference.
+    const normalized = await normalizeReferenceImageForEdit(rawReferenceImageDataUrl, reference?.faceCrop).catch(() => null);
+    if (normalized) {
+      referenceImageDataUrls.push(normalized);
+      referenceRoles.push("character");
+    }
   }
   const currentUser = generationUserIdentity;
   const userReference = currentUser ? settings.userReferences?.[currentUser.id] : undefined;
-  if (params.includeUserReference && !userReference?.featurePrompt?.trim() && !userReference?.assetId) {
-    throw new Error("当前用户尚未设置外貌提示词或参考图，请先到图片设置 → 用户身份中添加。");
-  }
   if (params.includeUserReference && userReference?.assetId && userReference.enabled !== false) {
     const userImage = await getChatImageFromIndexedDB(userReference.assetId).catch(() => null);
     if (userImage) {
-      referenceImageDataUrls.push(await normalizeReferenceImageForEdit(userImage, userReference.faceCrop));
-      referenceRoles.push("user");
+      const normalized = await normalizeReferenceImageForEdit(userImage, userReference.faceCrop).catch(() => null);
+      if (normalized) {
+        referenceImageDataUrls.push(normalized);
+        referenceRoles.push("user");
+      }
     }
   }
   throwIfAborted(params.signal);
@@ -888,7 +878,7 @@ export async function generateImageFromConfiguredApi(params: {
     characterPrompt ? `【角色固定外观】${characterPrompt}` : "",
     userPrompt ? `【当前用户${currentUser?.name ? `「${currentUser.name}」` : ""}固定外观】${userPrompt}` : "",
     ...imageIdentityInstructions,
-    params.includeUserReference && params.characterId
+    params.includeUserReference && params.characterId && !params.omitCharacterReference && (characterPrompt || rawReferenceImageDataUrl)
       ? `【双人身份规则】角色「${characterName}」和用户「${userName}」是两位不同的人。需要合照时必须同时出现、各自保留自己的面部特征；不要交换脸、混合五官、把两人合并成一个人，也不要让两人都长成同一张参考图的样子。`
       : "",
   ].filter(Boolean).join("\n\n"), openaiSettings.extraPrompt);
@@ -926,5 +916,5 @@ export function hasCharacterReferenceImage(characterId?: string): boolean {
   if (!characterId) return false;
   const settings = loadImageGenerationSettings();
   const ref = settings.characterReferences?.[characterId];
-  return Boolean(ref?.assetId || (settings.provider !== "novelai" && selectedGeneratedReference(characterId)));
+  return Boolean((ref?.assetId && ref.enabled !== false) || ref?.featurePrompt?.trim());
 }
